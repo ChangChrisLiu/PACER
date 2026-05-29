@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# PACER / robot artifacts: keep the repo lightweight and pre-publication safe
+data/
+outputs/
+runs/
+logs/
+checkpoints/
+*.ckpt
+*.safetensors
+*.pt
+*.pth
+*.pkl
+*.npz
+*.bag
+*.mp4
+*.avi
+*.mov
+*.jsonl
+.env
+.env.*
+secrets.*
+
+# Local integrations and agent scratch reviews
+.local/
+agent_reviews/

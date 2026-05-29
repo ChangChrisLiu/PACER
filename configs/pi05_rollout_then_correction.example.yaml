@@ -1,0 +1,24 @@
+# Example only. Replace all paths/endpoints with your local runtime.
+project: pacer-prepublication
+base_model:
+  family: pi0.5
+  model_id: pi05_base_example
+  checkpoint_path: /path/to/pi05_or_openpi_checkpoint
+  norm_stats_path: /path/to/method_specific_norm_stats
+robot_runtime:
+  policy_server: ws://127.0.0.1:8000
+  camera_server: tcp://127.0.0.1:5555
+  robot_server: tcp://127.0.0.1:5556
+rollout:
+  output_root: outputs/rollout_eval/pi05_base_example
+  components: [cpu_fan, graphic_card, connector, ram, cpu]
+  trials_per_component: 3
+  max_steps: 180
+correction_collection:
+  output_root: outputs/correction/pi05_base_example
+  phase: corrector_only
+  one_long_rollout_per_saved_trial: true
+pacer:
+  weighted_view_root: outputs/pacer_weighted_views
+  eta_pool: examples/eta_candidates.json
+  validation_scores_root: outputs/validation_scores

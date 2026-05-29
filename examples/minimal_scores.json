@@ -1,0 +1,11 @@
+{
+  "schema_version": "pacer.eval.v1",
+  "method_id": "pacer_eta_rw_like",
+  "split": "validation",
+  "score": 0.0,
+  "metrics": {
+    "success_rate": 0.0,
+    "mean_progress": 0.0
+  },
+  "notes": "Example placeholder only; replace with real validation metrics."
+}

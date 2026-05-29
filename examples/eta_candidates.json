@@ -1,0 +1,21 @@
+{
+  "eta_pool": [
+    {
+      "eta_id": "uniform_replay",
+      "description": "all evidence weights near 1.0",
+      "coefficients": {}
+    },
+    {
+      "eta_id": "pacer_eta_rw_like",
+      "description": "moderate process-aware correction/demo weighting"
+    },
+    {
+      "eta_id": "pacer_eta_terminal_stop_heavy",
+      "description": "emphasize terminal stop/process evidence"
+    },
+    {
+      "eta_id": "pacer_eta_correction_heavy",
+      "description": "emphasize human/corrector recovery evidence"
+    }
+  ]
+}
