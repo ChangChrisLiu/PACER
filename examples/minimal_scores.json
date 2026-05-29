@@ -1,6 +1,6 @@
 {
-  "schema_version": "pacer.eval.v1",
-  "method_id": "pacer_eta_rw_like",
+  "schema_version": "tracevla.eval.v1",
+  "method_id": "tracevla_eta_rw_like",
   "split": "validation",
   "score": 0.0,
   "metrics": {

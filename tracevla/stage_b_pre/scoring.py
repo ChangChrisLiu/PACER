@@ -91,7 +91,7 @@ def score_model_rollout_performance(
 ) -> dict[str, Any]:
     """Summarize whether commanded model rollout actually moved the robot.
 
-    This is intentionally a diagnostic score, not a task-success score. It is
+    This is intentionally a diagnostic score, not a task outcome metric. It is
     designed to separate pipeline failures (commands were produced but the arm
     did not move / did not track them) from genuine policy failures (the arm
     moved, but to a bad pose or without a stop token).

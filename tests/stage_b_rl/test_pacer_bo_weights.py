@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from pacer.stage_b_rl.pacer_bo_weights import (
+from tracevla.stage_b_rl.pacer_bo_weights import (
     ABLATION_WEIGHT_MODES,
     PACER_ABLATION_WEIGHT_SCHEMA_VERSION,
     PacerEta,
@@ -80,10 +80,10 @@ def test_compute_pacer_weights_zeroes_val_and_forbidden_rows():
     rows[-1]["split"] = "val"
     out, manifest = compute_pacer_weights(rows, PacerEta(), eta_id="unit")
     by_role = {r["row_id"]: r for r in out}
-    assert by_role["config_001:ram:model_failure"]["returns"]["pacer_weight"] == 0.0
-    assert by_role["config_002:ram:clean_demo"]["returns"]["pacer_weight"] == 0.0
-    assert by_role["config_001:ram:clean_demo"]["returns"]["pacer_weight"] >= 0.8
-    assert by_role["config_001:ram:human_correction"]["returns"]["pacer_weight"] >= 0.65
+    assert by_role["config_001:ram:model_failure"]["returns"]["tracevla_weight"] == 0.0
+    assert by_role["config_002:ram:clean_demo"]["returns"]["tracevla_weight"] == 0.0
+    assert by_role["config_001:ram:clean_demo"]["returns"]["tracevla_weight"] >= 0.8
+    assert by_role["config_001:ram:human_correction"]["returns"]["tracevla_weight"] >= 0.65
     assert manifest["safety_leakage"] == {}
     assert manifest["effective_sample_count"] > 0
 
@@ -93,7 +93,7 @@ def test_manifest_json_serializable(tmp_path: Path):
     p = tmp_path / "manifest.json"
     p.write_text(json.dumps(manifest, indent=2, sort_keys=True))
     assert json.loads(p.read_text())["eta_id"] == "unit"
-    assert out[0]["returns"]["pacer_schema"] == "pacer_bo_lc_fma_weights.v0.1"
+    assert out[0]["returns"]["tracevla_schema"] == "tracevla_bo_lc_fma_weights.v0.1"
 
 
 def _human_correction_without_aw_components(row_id: str, *, start: float, end: float, terminal: bool = False):
@@ -134,8 +134,8 @@ def test_human_correction_pacer_evidence_uses_chunk_local_trajectory_when_aw_com
     out, _manifest = compute_pacer_weights([weak, strong], PacerEta(), eta_id="unit")
     by_id = {row["row_id"]: row for row in out}
 
-    assert by_id["strong_correction"]["returns"]["pacer_raw_evidence_score"] > by_id["weak_correction"]["returns"]["pacer_raw_evidence_score"]
-    assert by_id["strong_correction"]["returns"]["pacer_weight"] > by_id["weak_correction"]["returns"]["pacer_weight"]
+    assert by_id["strong_correction"]["returns"]["tracevla_raw_evidence_score"] > by_id["weak_correction"]["returns"]["tracevla_raw_evidence_score"]
+    assert by_id["strong_correction"]["returns"]["tracevla_weight"] > by_id["weak_correction"]["returns"]["tracevla_weight"]
 
 
 def test_hard_gate_allows_legacy_rows_without_aw_fma_loss_eligible_when_other_gates_pass():
@@ -191,8 +191,8 @@ def test_wrong_target_metadata_does_not_change_training_weights():
     }
 
     pacer_rows, pacer_manifest = compute_pacer_weights([row], PacerEta(), eta_id="unit")
-    assert pacer_rows[0]["returns"]["pacer_weight"] > 0.0
-    assert "target_mismatch_no_positive_imitation" not in pacer_rows[0]["returns"]["pacer_loss_ineligible_reasons"]
+    assert pacer_rows[0]["returns"]["tracevla_weight"] > 0.0
+    assert "target_mismatch_no_positive_imitation" not in pacer_rows[0]["returns"]["tracevla_loss_ineligible_reasons"]
     assert pacer_manifest["safety_leakage"] == {}
 
     for mode in sorted(ABLATION_WEIGHT_MODES):
@@ -201,7 +201,7 @@ def test_wrong_target_metadata_does_not_change_training_weights():
             assert out[0]["returns"]["loss_weight"] == 0.0
         else:
             assert out[0]["returns"]["loss_weight"] > 0.0
-        assert "target_mismatch_no_positive_imitation" not in out[0]["returns"]["pacer_ablation_ineligible_reasons"]
+        assert "target_mismatch_no_positive_imitation" not in out[0]["returns"]["tracevla_ablation_ineligible_reasons"]
         assert manifest["safety_leakage"] == {}
 
 
@@ -249,8 +249,8 @@ def test_ablation_factory_preserves_rows_and_zeroes_non_train():
         for row in non_train:
             ret = row["returns"]
             assert ret["loss_weight"] == 0.0
-            assert ret["pacer_ablation_weight"] == 0.0
-            assert "non_train_split" in ret["pacer_ablation_ineligible_reasons"]
+            assert ret["tracevla_ablation_weight"] == 0.0
+            assert "non_train_split" in ret["tracevla_ablation_ineligible_reasons"]
 
 
 def test_ablation_modes_select_expected_training_rows():
@@ -269,7 +269,7 @@ def test_ablation_modes_select_expected_training_rows():
         "outcome_only": {"clean_demo", "model_success"},
         "fixed_rw_fma": {"clean_demo", "human_correction", "model_partial", "model_success"},
         "random_weight": {"clean_demo", "human_correction", "model_partial", "model_success"},
-        "pacer_eta": {"clean_demo", "human_correction", "model_partial", "model_success"},
+        "tracevla_eta": {"clean_demo", "human_correction", "model_partial", "model_success"},
     }
 
     for mode, roles in expected_roles.items():
@@ -284,8 +284,8 @@ def test_ablation_modes_never_assign_positive_weight_to_excluded_rows():
     for mode in sorted(ABLATION_WEIGHT_MODES):
         out, manifest = compute_ablation_weights(rows, mode=mode, eta=PacerEta(), eta_id="unit")
         assert out[0]["returns"]["loss_weight"] == 0.0
-        assert out[0]["returns"]["pacer_ablation_weight"] == 0.0
-        assert "excluded_role_no_positive_imitation" in out[0]["returns"]["pacer_ablation_ineligible_reasons"]
+        assert out[0]["returns"]["tracevla_ablation_weight"] == 0.0
+        assert "excluded_role_no_positive_imitation" in out[0]["returns"]["tracevla_ablation_ineligible_reasons"]
         assert manifest["safety_leakage"] == {}
 
 

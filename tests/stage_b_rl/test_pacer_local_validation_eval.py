@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from pacer.stage_b_rl.pacer_eval_contract import validate_pacer_bo_eval_report
-from pacer.stage_b_rl.pacer_local_validation_eval import (
+from tracevla.stage_b_rl.pacer_eval_contract import validate_pacer_bo_eval_report
+from tracevla.stage_b_rl.pacer_local_validation_eval import (
     build_pacer_scores_from_alignment_eval,
     write_pacer_scores_json,
 )
@@ -49,7 +49,7 @@ def test_alignment_eval_converts_to_contract_valid_pacer_scores():
         training_run_id="fixed_rw_fma_8499_local_validation_smoke",
     )
 
-    assert report["schema"] == "pacer_bo_eval_scores.v0.1"
+    assert report["schema"] == "tracevla_bo_eval_scores.v0.1"
     assert report["split"] == "val"
     assert report["candidate"]["checkpoint_ref"] == "/tmp/8499"
     assert report["scores"]["action_vector_direction_cosine"] == 0.8

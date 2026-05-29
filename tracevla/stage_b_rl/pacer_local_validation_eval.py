@@ -14,7 +14,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Iterable, Mapping
 
-from pacer.stage_b_rl.pacer_eval_contract import (
+from tracevla.stage_b_rl.pacer_eval_contract import (
     PACER_BO_EVAL_SCHEMA_VERSION,
     compute_recommended_j_b_val,
     validate_pacer_bo_eval_report,

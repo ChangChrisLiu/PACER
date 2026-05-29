@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 
-from pacer.stage_b_rl.pacer_bo import (
+from tracevla.stage_b_rl.pacer_bo import (
     BayesianOptimizationResult,
     NoCandidateProposalsError,
     expected_improvement,
@@ -12,8 +12,8 @@ from pacer.stage_b_rl.pacer_bo import (
     propose_next_etas,
     write_bo_proposal_artifacts,
 )
-from pacer.stage_b_rl.pacer_bo_weights import PacerEta
-from pacer.stage_b_rl.pacer_eval_contract import compute_recommended_j_b_val
+from tracevla.stage_b_rl.pacer_bo_weights import PacerEta
+from tracevla.stage_b_rl.pacer_eval_contract import compute_recommended_j_b_val
 
 
 def _score_report(j: float) -> dict:
@@ -37,7 +37,7 @@ def _score_report(j: float) -> dict:
     }
     scores["J_B_val"] = compute_recommended_j_b_val(scores)
     return {
-        "schema": "pacer_bo_eval_scores.v0.1",
+        "schema": "tracevla_bo_eval_scores.v0.1",
         "split": "val",
         "candidate": {"eta_id": "unit", "eta_hash": "unit", "checkpoint_ref": "ckpt", "training_run_id": "run"},
         "scores": scores,
@@ -126,7 +126,7 @@ def test_write_bo_proposal_artifacts_round_trips_json(tmp_path: Path):
     out = write_bo_proposal_artifacts(result, tmp_path)
 
     payload = json.loads((out / "next_eta_candidates.json").read_text())
-    assert payload["schema"] == "pacer_bo_proposals.v0.1"
+    assert payload["schema"] == "tracevla_bo_proposals.v0.1"
     assert payload["surrogate_model"] == "GaussianProcessRegressor"
     assert payload["acquisition_rule"] == "expected_improvement"
     assert "kernel_fitted" in payload

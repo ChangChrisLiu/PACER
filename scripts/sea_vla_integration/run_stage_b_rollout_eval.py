@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# PACER pre-publication integration script.
+# TRACE-VLA pre-publication integration script.
 # This script is copied from the SEA-VLA robotics stack and expects the robot/camera/OpenPI
 # adapters from SEA-VLA to be importable. It is intentionally included as an integration
 # reference, not as a standalone hardware driver.
@@ -33,8 +33,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from pacer.stage_b_pre.config import COMPONENT_SEQUENCE, DEFAULT_FPS, DEFAULT_IMAGE_SIZE, DEFAULT_MAX_STEPS
-from pacer.stage_b_rollout_eval.eval_plan import (
+from tracevla.stage_b_pre.config import COMPONENT_SEQUENCE, DEFAULT_FPS, DEFAULT_IMAGE_SIZE, DEFAULT_MAX_STEPS
+from tracevla.stage_b_rollout_eval.eval_plan import (
     DEFAULT_CONFIGS,
     DEFAULT_TRIALS_PER_COMPONENT,
     EvalProgressTracker,
@@ -43,7 +43,7 @@ from pacer.stage_b_rollout_eval.eval_plan import (
     load_model_registry,
     plan_summary,
 )
-from pacer.stage_b_rollout_eval.eval_writer import RolloutEvalWriter
+from tracevla.stage_b_rollout_eval.eval_writer import RolloutEvalWriter
 
 
 DEFAULT_OUTPUT_ROOT = "data/stage_b_rollout_eval"
@@ -324,7 +324,7 @@ def main(argv: list[str] | None = None) -> None:
     from src.agents.vla_agent import VLAAgent  # noqa: E402
     from src.comms.camera_node import ZMQClientCamera  # noqa: E402
     from src.comms.robot_node import ZMQClientRobot  # noqa: E402
-    from pacer.stage_b_rollout_eval.eval_runner import (  # noqa: E402
+    from tracevla.stage_b_rollout_eval.eval_runner import (  # noqa: E402
         HardwareHandles,
         RolloutEvalConfig,
         RolloutEvalRunner,

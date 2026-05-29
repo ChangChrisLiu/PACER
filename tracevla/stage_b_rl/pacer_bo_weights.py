@@ -17,8 +17,8 @@ from pathlib import Path
 from statistics import median
 from typing import Any, Iterable, Mapping
 
-PACER_WEIGHT_SCHEMA_VERSION = "pacer_bo_lc_fma_weights.v0.1"
-PACER_ABLATION_WEIGHT_SCHEMA_VERSION = "pacer_ablation_weight_view.v0.1"
+PACER_WEIGHT_SCHEMA_VERSION = "tracevla_bo_lc_fma_weights.v0.1"
+PACER_ABLATION_WEIGHT_SCHEMA_VERSION = "tracevla_ablation_weight_view.v0.1"
 
 ABLATION_WEIGHT_MODES = frozenset(
     {
@@ -28,7 +28,7 @@ ABLATION_WEIGHT_MODES = frozenset(
         "outcome_only",
         "fixed_rw_fma",
         "random_weight",
-        "pacer_eta",
+        "tracevla_eta",
     }
 )
 
@@ -449,18 +449,18 @@ def compute_pacer_weights(rows: list[dict[str, Any]], eta: PacerEta, *, eta_id: 
         returns = new_row.setdefault("returns", {})
         returns.update(
             {
-                "pacer_schema": PACER_WEIGHT_SCHEMA_VERSION,
-                "pacer_eta_id": eta_id,
-                "pacer_eta_hash": eta.eta_hash(),
-                "pacer_raw_evidence_score": score,
-                "pacer_stratum_key": key,
-                "pacer_train_baseline": center,
-                "pacer_advantage_like_score": advantage,
-                "pacer_advantage_normalized": norm_adv,
-                "pacer_weight_unclipped": unclipped,
-                "pacer_weight": weight,
-                "pacer_loss_eligible": bool(ok),
-                "pacer_loss_ineligible_reasons": reasons,
+                "tracevla_schema": PACER_WEIGHT_SCHEMA_VERSION,
+                "tracevla_eta_id": eta_id,
+                "tracevla_eta_hash": eta.eta_hash(),
+                "tracevla_raw_evidence_score": score,
+                "tracevla_stratum_key": key,
+                "tracevla_train_baseline": center,
+                "tracevla_advantage_like_score": advantage,
+                "tracevla_advantage_normalized": norm_adv,
+                "tracevla_weight_unclipped": unclipped,
+                "tracevla_weight": weight,
+                "tracevla_loss_eligible": bool(ok),
+                "tracevla_loss_ineligible_reasons": reasons,
             }
         )
         out_rows.append(new_row)
@@ -496,7 +496,7 @@ def compute_pacer_weights(rows: list[dict[str, Any]], eta: PacerEta, *, eta_id: 
     return out_rows, manifest
 
 
-def safety_leakage_report(rows: Iterable[Mapping[str, Any]], *, weight_path: str = "returns.pacer_weight") -> dict[str, int]:
+def safety_leakage_report(rows: Iterable[Mapping[str, Any]], *, weight_path: str = "returns.tracevla_weight") -> dict[str, int]:
     report: Counter[str] = Counter()
     for row in rows:
         w = as_float(nested_get(row, weight_path), 0.0)
@@ -566,14 +566,14 @@ def _attach_ablation_fields(
     returns = new_row.setdefault("returns", {})
     returns.update(
         {
-            "pacer_ablation_schema": PACER_ABLATION_WEIGHT_SCHEMA_VERSION,
-            "pacer_ablation_mode": mode,
-            "pacer_ablation_eta_id": eta_id,
-            "pacer_ablation_eta_hash": eta_hash,
-            "pacer_ablation_weight": float(weight),
-            "pacer_ablation_weight_source": source,
-            "pacer_ablation_loss_eligible": bool(weight > 0),
-            "pacer_ablation_ineligible_reasons": reasons,
+            "tracevla_ablation_schema": PACER_ABLATION_WEIGHT_SCHEMA_VERSION,
+            "tracevla_ablation_mode": mode,
+            "tracevla_ablation_eta_id": eta_id,
+            "tracevla_ablation_eta_hash": eta_hash,
+            "tracevla_ablation_weight": float(weight),
+            "tracevla_ablation_weight_source": source,
+            "tracevla_ablation_loss_eligible": bool(weight > 0),
+            "tracevla_ablation_ineligible_reasons": reasons,
             "loss_weight": float(weight),
         }
     )
@@ -603,14 +603,14 @@ def _ablation_manifest(
             role_weight_sum[str(row.get("sample_role"))] += weight
             component_weight_sum[str(row.get("component"))] += weight
         else:
-            for reason in nested_get(row, "returns.pacer_ablation_ineligible_reasons", []) or []:
+            for reason in nested_get(row, "returns.tracevla_ablation_ineligible_reasons", []) or []:
                 counts[f"ineligible:{reason}"] += 1
     eff_count = (sum(positive) ** 2 / sum(w * w for w in positive)) if positive else 0.0
     manifest = {
         "schema": PACER_ABLATION_WEIGHT_SCHEMA_VERSION,
         "ablation_mode": mode,
         "weight_field": "returns.loss_weight",
-        "method_weight_field": "returns.pacer_ablation_weight",
+        "method_weight_field": "returns.tracevla_ablation_weight",
         "source_row_count": len(rows),
         "counts": dict(counts),
         "split_counts": dict(split_counts),
@@ -621,12 +621,12 @@ def _ablation_manifest(
         "role_weight_sum": dict(role_weight_sum),
         "component_weight_sum": dict(component_weight_sum),
         "random_seed": random_seed if mode == "random_weight" else None,
-        "eta_id": eta_id if mode == "pacer_eta" else None,
-        "eta_hash": eta.eta_hash() if mode == "pacer_eta" and eta is not None else None,
+        "eta_id": eta_id if mode == "tracevla_eta" else None,
+        "eta_hash": eta.eta_hash() if mode == "tracevla_eta" and eta is not None else None,
         "safety_leakage": safety_leakage_report(rows, weight_path="returns.loss_weight"),
     }
     if pacer_manifest is not None:
-        manifest["pacer_manifest"] = dict(pacer_manifest)
+        manifest["tracevla_manifest"] = dict(pacer_manifest)
     return manifest
 
 
@@ -642,7 +642,7 @@ def compute_ablation_weights(
 
     The returned rows preserve row order and split membership. Every mode writes
     a generic train-consumable ``returns.loss_weight`` plus an audit-specific
-    ``returns.pacer_ablation_weight``. Non-train or hard-gated rows always get
+    ``returns.tracevla_ablation_weight``. Non-train or hard-gated rows always get
     zero weight but remain present for validation/heldout context.
     """
     if mode not in ABLATION_WEIGHT_MODES:
@@ -650,15 +650,15 @@ def compute_ablation_weights(
 
     eta = eta or PacerEta()
     eta_id = eta_id or f"eta_{eta.eta_hash()}"
-    if mode == "pacer_eta":
+    if mode == "tracevla_eta":
         pacer_rows, pacer_manifest = compute_pacer_weights(rows, eta, eta_id=eta_id)
         out_rows = [
             _attach_ablation_fields(
                 row,
                 mode=mode,
-                weight=as_float(nested_get(row, "returns.pacer_weight"), 0.0),
-                source="returns.pacer_weight",
-                reasons=list(nested_get(row, "returns.pacer_loss_ineligible_reasons", []) or []),
+                weight=as_float(nested_get(row, "returns.tracevla_weight"), 0.0),
+                source="returns.tracevla_weight",
+                reasons=list(nested_get(row, "returns.tracevla_loss_ineligible_reasons", []) or []),
                 eta_id=eta_id,
                 eta_hash=eta.eta_hash(),
             )
@@ -746,7 +746,7 @@ def freeze_config_splits(rows: list[dict[str, Any]], *, val_configs: set[str] | 
         split_counts[split] += 1
         by_component_split[f"{r.get('component')}|{split}"] += 1
     manifest = {
-        "schema": "pacer_split_manifest.v0.1",
+        "schema": "tracevla_split_manifest.v0.1",
         "strategy": strategy,
         **manifest_extra,
         "split_counts": dict(split_counts),

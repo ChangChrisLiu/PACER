@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# PACER pre-publication integration script.
+# TRACE-VLA pre-publication integration script.
 # This script is copied from the SEA-VLA robotics stack and expects the robot/camera/OpenPI
 # adapters from SEA-VLA to be importable. It is intentionally included as an integration
 # reference, not as a standalone hardware driver.
@@ -57,11 +57,11 @@ except ModuleNotFoundError as exc:  # pragma: no cover - integration-only fallba
 def _require_sea_vla_runtime() -> None:
     if _SEA_VLA_IMPORT_ERROR is not None:
         raise SystemExit(
-            "This is a PACER pre-publication SEA-VLA integration reference. "
+            "This is a TRACE-VLA pre-publication SEA-VLA integration reference. "
             "Live collection requires the full SEA-VLA robot runtime on PYTHONPATH. "
             f"Original import error: {_SEA_VLA_IMPORT_ERROR}"
         )
-from pacer.stage_b_pre.config import (
+from tracevla.stage_b_pre.config import (
     COMPONENT_SEQUENCE,
     CORRECTOR_FEEDBACK_LABELS,
     DEFAULT_FPS,
@@ -79,13 +79,13 @@ from pacer.stage_b_pre.config import (
     PLANNER_SKILL_FEEDBACK_LABELS,
     TASK_INSTRUCTIONS,
 )
-from pacer.stage_b_pre.feedback import prompt_label, wait_for_enter
-from pacer.stage_b_pre.gripper_verifier import GripperVerification, verify_gripper
-from pacer.stage_b_pre.inference_runner import GripperCapConfig, TracedChunkRunner
-from pacer.stage_b_pre.scoring import score_model_rollout_performance, score_planner_final_pose
-from pacer.stage_b_pre.schemas import Feedback, TargetPoint, TargetRegion, TrialSpec
-from pacer.stage_b_pre.teleop_capture import TeleopCaptureController, TeleopThread
-from pacer.stage_b_pre.trial_plan import (
+from tracevla.stage_b_pre.feedback import prompt_label, wait_for_enter
+from tracevla.stage_b_pre.gripper_verifier import GripperVerification, verify_gripper
+from tracevla.stage_b_pre.inference_runner import GripperCapConfig, TracedChunkRunner
+from tracevla.stage_b_pre.scoring import score_model_rollout_performance, score_planner_final_pose
+from tracevla.stage_b_pre.schemas import Feedback, TargetPoint, TargetRegion, TrialSpec
+from tracevla.stage_b_pre.teleop_capture import TeleopCaptureController, TeleopThread
+from tracevla.stage_b_pre.trial_plan import (
     COLLECTION_ORDER_CHOICES,
     COLLECTION_ORDERS,
     COMPONENT_MAJOR_PLANNER_THEN_CORRECTOR,
@@ -98,7 +98,7 @@ from pacer.stage_b_pre.trial_plan import (
     canonical_collection_order,
     normalize_config_id,
 )
-from pacer.stage_b_pre.reference_cache import (
+from tracevla.stage_b_pre.reference_cache import (
     CorrectorStartPoseCache,
     PlannerReferenceCache,
     build_planner_reference_binding,
@@ -106,7 +106,7 @@ from pacer.stage_b_pre.reference_cache import (
     resolve_planner_skill_target_group,
     resolve_target_group,
 )
-from pacer.stage_b_pre.writer import StageBPreWriter, write_json
+from tracevla.stage_b_pre.writer import StageBPreWriter, write_json
 
 PLANNER_ONLY_FAILURE_LABELS = {
     # V0.7 failure labels.
@@ -3001,7 +3001,7 @@ class LiveCollector:
         None) so they continue to exercise the segment-recording logic
         without needing a planner_only cache.
         """
-        from pacer.stage_b_pre.reference_cache import MissingPlannerReferenceError
+        from tracevla.stage_b_pre.reference_cache import MissingPlannerReferenceError
 
         cache = self._planner_reference_cache(trial)
         if cache is None:
@@ -3089,7 +3089,7 @@ class LiveCollector:
         self, trial: TrialSpec
     ) -> tuple[TargetPoint, dict[str, Any]]:
         """Capture or reuse the corrector failure_start pose for ``trial``."""
-        from pacer.stage_b_pre.reference_cache import decide_corrector_start_action
+        from tracevla.stage_b_pre.reference_cache import decide_corrector_start_action
 
         cache = self._corrector_start_cache(trial)
         if cache is None:

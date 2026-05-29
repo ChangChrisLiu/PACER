@@ -21,7 +21,7 @@ Correction evidence should distinguish:
 - clean demonstration segment, if collected separately
 - stop-token emission versus stop-token acceptance
 
-## PACER weighted view
+## TRACE-VLA weighted view
 
 A materialized weighted training view should expose:
 
@@ -30,8 +30,8 @@ A materialized weighted training view should expose:
   "returns": {
     "loss_weight": 1.0
   },
-  "pacer": {
-    "eta_id": "pacer_eta_rw_like",
+  "tracevla": {
+    "eta_id": "tracevla_eta_rw_like",
     "stratum": "planner_only/cpu_fan",
     "evidence": {}
   }

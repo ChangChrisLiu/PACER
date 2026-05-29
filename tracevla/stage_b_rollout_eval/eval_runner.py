@@ -36,8 +36,8 @@ from typing import Any
 
 import numpy as np
 
-from pacer.stage_b_pre.config import TASK_INSTRUCTIONS
-from pacer.stage_b_pre.inference_runner import (
+from tracevla.stage_b_pre.config import TASK_INSTRUCTIONS
+from tracevla.stage_b_pre.inference_runner import (
     GripperCapConfig,
     RolloutResult,
     TracedChunkRunner,

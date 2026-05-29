@@ -1,0 +1,36 @@
+# TRACE-VLA hardware/software example configuration.
+# Copy to configs/local_hardware.yaml and replace placeholders on the lab machine.
+
+policy:
+  backend: openpi
+  server_host: 127.0.0.1
+  server_port: 8000
+  open_loop_horizon: 10
+  control_fps: 10
+  checkpoint_name: pi05_example_checkpoint
+  norm_stats_key: METHOD_SPECIFIC_NORM_STATS_KEY
+
+robot:
+  # Keep placeholder addresses in the repo. Use the real robot/controller IP only
+  # in your untracked local copy.
+  robot_host: ROBOT_IP_OR_HOSTNAME
+  command_zmq: tcp://ROBOT_IP_OR_HOSTNAME:5555
+  telemetry_zmq: tcp://ROBOT_IP_OR_HOSTNAME:5556
+  camera_zmq: tcp://CAMERA_HOSTNAME:5560
+  confirm_hardware_required: true
+  home_gripper_pos: 3
+
+safety:
+  workspace_bounds_m:
+    x: [0.20, 0.85]
+    y: [-0.45, 0.45]
+    z: [0.02, 0.55]
+  max_joint_delta_rad: 0.08
+  max_tcp_delta_m: 0.025
+  non_cpu_gripper_cap_norm: 0.7058823529411765  # 180/255
+  stop_token_lower_norm: 0.9411764705882353     # 240/255
+
+run:
+  component: cpu_fan
+  prompt: "Manipulate the requested computer part carefully."
+  output_dir: outputs/tracevla_runs

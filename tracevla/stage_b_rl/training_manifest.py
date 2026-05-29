@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-PACER_TRAINING_RUN_MANIFEST_SCHEMA = "pacer_training_run_manifest.v0.1"
+PACER_TRAINING_RUN_MANIFEST_SCHEMA = "tracevla_training_run_manifest.v0.1"
 DEFAULT_ABLATION_METHODS = (
     "clean_demo_only",
     "uniform_replay",
@@ -17,14 +17,14 @@ DEFAULT_ABLATION_METHODS = (
     "outcome_only",
     "fixed_rw_fma",
     "random_weight",
-    "pacer_eta_rw_like",
-    "pacer_eta_progress_heavy",
-    "pacer_eta_hover_proximity_heavy",
-    "pacer_eta_terminal_stop_heavy",
-    "pacer_eta_correction_heavy",
-    "pacer_eta_conservative",
-    "pacer_eta_ram_connector_recovery",
-    "pacer_eta_balanced_low_clip",
+    "tracevla_eta_rw_like",
+    "tracevla_eta_progress_heavy",
+    "tracevla_eta_hover_proximity_heavy",
+    "tracevla_eta_terminal_stop_heavy",
+    "tracevla_eta_correction_heavy",
+    "tracevla_eta_conservative",
+    "tracevla_eta_ram_connector_recovery",
+    "tracevla_eta_balanced_low_clip",
 )
 
 
@@ -97,7 +97,7 @@ echo ">>> Stage 2: Train LoRA for {method} ({steps} steps)"
 cd "$OPENPI_ROOT"
 uv run python scripts/train.py pi05_droid_ur5e_stage_b_rwfma_lora_10hz \\
   --data.repo-id "$REPO_ID" \\
-  --exp-name "pacer_{method}_${{SLURM_JOB_ID:-local}}" \\
+  --exp-name "tracevla_{method}_${{SLURM_JOB_ID:-local}}" \\
   --checkpoint-base-dir "$RUN_DIR/openpi_lora_output" \\
   --num-train-steps {steps} \\
   --batch-size 32 \\
@@ -158,7 +158,7 @@ def build_pacer_training_run_plan(
         "local_run_dir": str(sftpp_dir),
         "hprc_slurm_path": str(sftpp_dir / "train_job.slurm"),
         "validation_scores_path": str(sftpp_dir / "validation" / "scores.json"),
-        "eval_schema": "pacer_bo_eval_scores.v0.1",
+        "eval_schema": "tracevla_bo_eval_scores.v0.1",
         "steps": int(steps),
     }
 
@@ -172,14 +172,14 @@ def build_pacer_training_run_plan(
                 "base_checkpoint_type": "merged_original_sft",
                 "base_checkpoint_path": str(Path(merged_original_sft_checkpoint)),
                 "stage_b_view_path": str(stage_b_views_root / method / "action_chunks.jsonl"),
-                "stage_b_weight_manifest": str(stage_b_views_root / method / "pacer_weight_manifest.json"),
+                "stage_b_weight_manifest": str(stage_b_views_root / method / "tracevla_weight_manifest.json"),
                 "loss_weight_field": "returns.loss_weight",
                 "trainable_adapter": "new_lora",
                 "local_run_dir": str(run_dir),
                 "new_lora_output_dir": str(run_dir / "openpi_lora_output"),
                 "hprc_slurm_path": str(run_dir / "train_job.slurm"),
                 "validation_scores_path": str(run_dir / "validation" / "scores.json"),
-                "eval_schema": "pacer_bo_eval_scores.v0.1",
+                "eval_schema": "tracevla_bo_eval_scores.v0.1",
                 "steps": int(steps),
             }
         )
@@ -244,7 +244,7 @@ def validate_training_run_plan(plan: Mapping[str, Any]) -> list[str]:
                 except Exception:
                     errors.append(f"bad_stage_b_weight_manifest_json:{method}")
                 else:
-                    expected_mode = "pacer_eta" if method.startswith("pacer_eta_") else method
+                    expected_mode = "tracevla_eta" if method.startswith("tracevla_eta_") else method
                     if manifest.get("ablation_mode") != expected_mode:
                         errors.append(f"weight_manifest_mode_mismatch:{method}")
                     if manifest.get("weight_field") != "returns.loss_weight":

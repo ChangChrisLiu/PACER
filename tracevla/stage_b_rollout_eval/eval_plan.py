@@ -13,8 +13,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from pacer.stage_b_pre.config import COMPONENT_SEQUENCE
-from pacer.stage_b_pre.trial_plan import normalize_config_id
+from tracevla.stage_b_pre.config import COMPONENT_SEQUENCE
+from tracevla.stage_b_pre.trial_plan import normalize_config_id
 
 
 DEFAULT_TRIALS_PER_COMPONENT = 10

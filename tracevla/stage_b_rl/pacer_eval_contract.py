@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from typing import Any, Mapping
 
-PACER_BO_EVAL_SCHEMA_VERSION = "pacer_bo_eval_scores.v0.1"
+PACER_BO_EVAL_SCHEMA_VERSION = "tracevla_bo_eval_scores.v0.1"
 
 REQUIRED_BO_SCORE_KEYS = frozenset(
     {

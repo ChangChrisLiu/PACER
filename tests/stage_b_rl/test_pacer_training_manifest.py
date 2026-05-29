@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from pacer.stage_b_rl.training_manifest import (
+from tracevla.stage_b_rl.training_manifest import (
     PACER_TRAINING_RUN_MANIFEST_SCHEMA,
     build_pacer_training_run_plan,
     validate_training_run_plan,
@@ -18,9 +18,9 @@ def test_build_training_plan_uses_same_merged_base_for_sftpp_and_ablation_runs(t
     unmerged = _touch(tmp_path / "openpi/checkpoints/original_sft_unmerged/49999/_CHECKPOINT_METADATA")
     merged = _touch(tmp_path / "openpi/checkpoints/original_sft_merged/49999/_CHECKPOINT_METADATA")
     views_root = tmp_path / "views"
-    for mode in ["clean_demo_only", "correction_only", "fixed_rw_fma", "pacer_eta"]:
+    for mode in ["clean_demo_only", "correction_only", "fixed_rw_fma", "tracevla_eta"]:
         _touch(views_root / mode / "action_chunks.jsonl", "{}\n")
-        _touch(views_root / mode / "pacer_weight_manifest.json", json.dumps({"ablation_mode": mode, "weight_field": "returns.loss_weight", "safety_leakage": {}}))
+        _touch(views_root / mode / "tracevla_weight_manifest.json", json.dumps({"ablation_mode": mode, "weight_field": "returns.loss_weight", "safety_leakage": {}}))
     output_root = tmp_path / "runs"
 
     plan = build_pacer_training_run_plan(
@@ -28,7 +28,7 @@ def test_build_training_plan_uses_same_merged_base_for_sftpp_and_ablation_runs(t
         merged_original_sft_checkpoint=merged.parent,
         stage_b_views_root=views_root,
         output_root=output_root,
-        methods=["clean_demo_only", "correction_only", "fixed_rw_fma", "pacer_eta"],
+        methods=["clean_demo_only", "correction_only", "fixed_rw_fma", "tracevla_eta"],
         hprc_openpi_root="/scratch/$USER/openpi",
         hprc_sea_vla_root="/scratch/$USER/SEA-VLA",
         steps=100,
@@ -41,7 +41,7 @@ def test_build_training_plan_uses_same_merged_base_for_sftpp_and_ablation_runs(t
     assert plan["sftpp_demo_run"]["stage_b_sources"] == ["clean_demo_only", "correction_only"]
 
     runs = {run["method"]: run for run in plan["ablation_lora_runs"]}
-    assert set(runs) == {"clean_demo_only", "correction_only", "fixed_rw_fma", "pacer_eta"}
+    assert set(runs) == {"clean_demo_only", "correction_only", "fixed_rw_fma", "tracevla_eta"}
     for method, run in runs.items():
         assert run["base_checkpoint_type"] == "merged_original_sft"
         assert run["base_checkpoint_path"] == str(merged.parent)
@@ -59,7 +59,7 @@ def test_materialized_slurm_placeholder_uses_run_manifest_path(tmp_path: Path):
     views_root = tmp_path / "views"
     for mode in ["clean_demo_only", "correction_only"]:
         _touch(views_root / mode / "action_chunks.jsonl", "{}\n")
-        _touch(views_root / mode / "pacer_weight_manifest.json", json.dumps({"ablation_mode": mode, "weight_field": "returns.loss_weight", "safety_leakage": {}}))
+        _touch(views_root / mode / "tracevla_weight_manifest.json", json.dumps({"ablation_mode": mode, "weight_field": "returns.loss_weight", "safety_leakage": {}}))
     output_root = tmp_path / "runs"
     plan = build_pacer_training_run_plan(
         unmerged_original_sft_checkpoint=unmerged.parent,
@@ -69,7 +69,7 @@ def test_materialized_slurm_placeholder_uses_run_manifest_path(tmp_path: Path):
         methods=["clean_demo_only", "correction_only"],
     )
 
-    from pacer.stage_b_rl.training_manifest import materialize_training_run_plan
+    from tracevla.stage_b_rl.training_manifest import materialize_training_run_plan
 
     written = materialize_training_run_plan(plan, output_root)
     slurm = Path(written["sftpp_demo_run"]["slurm"]).read_text()
@@ -93,7 +93,7 @@ def test_training_plan_validation_checks_weight_manifest_method_and_safety(tmp_p
     _touch(tmp_path / "views/clean_demo_only/action_chunks.jsonl", "{}\n")
     _touch(tmp_path / "views/correction_only/action_chunks.jsonl", "{}\n")
     bad_manifest = _touch(
-        tmp_path / "views/fixed_rw_fma/pacer_weight_manifest.json",
+        tmp_path / "views/fixed_rw_fma/tracevla_weight_manifest.json",
         json.dumps({"ablation_mode": "random_weight", "weight_field": "returns.loss_weight", "safety_leakage": {}}),
     )
     plan = build_pacer_training_run_plan(
