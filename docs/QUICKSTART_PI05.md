@@ -9,7 +9,7 @@ The commands below are intentionally explicit and use the actual integration-scr
 ```text
 base_policy: existing Pi0.5/OpenPI checkpoint or LoRA-merged checkpoint
 norm_stats: method/checkpoint-family-specific norm_stats available
-runtime: SEA-VLA robot/camera/OpenPI adapters available when doing live hardware runs
+runtime: TRACE-VLA robot/camera/OpenPI adapters available when doing live hardware runs
 ```
 
 Install the lightweight TRACE-VLA package for offline code/tests:
@@ -24,7 +24,7 @@ pytest -q
 Dry-run the evaluation plan first:
 
 ```bash
-python scripts/sea_vla_integration/run_stage_b_rollout_eval.py \
+python scripts/robot_runtime/run_rollout_eval.py \
   --run-id pi05_base_example \
   --model-id pi05_base \
   --model-type openpi \
@@ -40,12 +40,12 @@ For live hardware, start the robot, camera, and policy server in separate termin
 
 ## 2. Collect correction evidence
 
-The correction/demo collector is a SEA-VLA integration reference. Its `--help` and `--dry-run` can be inspected from this repo, but live collection requires the full SEA-VLA robot runtime on `PYTHONPATH`.
+The correction/demo collector is a robot-runtime integration reference. Its `--help` and `--dry-run` can be inspected from this repo, but live collection requires the full external robot runtime on `PYTHONPATH`.
 
 Dry-run a corrector-only block:
 
 ```bash
-python scripts/sea_vla_integration/run_stage_b_pre_collection.py \
+python scripts/robot_runtime/run_correction_collection.py \
   --config-id config_001 \
   --phase-block corrector_only \
   --components cpu_fan,graphic_card,connector,ram,cpu \
@@ -55,7 +55,7 @@ python scripts/sea_vla_integration/run_stage_b_pre_collection.py \
   --dry-run
 ```
 
-For live collection, run from the SEA-VLA hardware environment and add `--confirm-hardware`.
+For live collection, run from the robot hardware environment and add `--confirm-hardware`.
 
 Contract reminders:
 
@@ -65,16 +65,16 @@ Contract reminders:
 
 ## 3. Compile TRACE-VLA chunks
 
-Use `tracevla.stage_b_rl.action_chunk_compiler` on rollout/correction manifests to produce action chunks and process evidence.
+Use `tracevla.weighting.action_chunk_compiler` on rollout/correction manifests to produce action chunks and process evidence.
 
 ## 4. Materialize TRACE-VLA weights
 
-Use `tracevla.stage_b_rl.pacer_bo_weights` to map eta settings to clipped, stratum-normalized `returns.loss_weight` values.
+Use `tracevla.weighting.pacer_bo_weights` to map eta settings to clipped, stratum-normalized `returns.loss_weight` values.
 
 ## 5. Fine-tune and evaluate
 
-Fine-tune candidate weighted views in your training stack. Evaluate each candidate with fixed method-specific norm stats at serving time. Write each validation result as a `scores.json` compatible with `tracevla.stage_b_rl.pacer_eval_contract`.
+Fine-tune candidate weighted views in your training stack. Evaluate each candidate with fixed method-specific norm stats at serving time. Write each validation result as a `scores.json` compatible with `tracevla.weighting.pacer_eval_contract`.
 
 ## 6. Propose the next eta
 
-Use `tracevla.stage_b_rl.pacer_bo` with validation scores only. Do not use heldout/final-test scores for BO selection.
+Use `tracevla.weighting.pacer_bo` with validation scores only. Do not use heldout/final-test scores for BO selection.

@@ -110,7 +110,7 @@ python scripts/hardware/zmq_agent_probe.py --endpoint tcp://ROBOT_IP_OR_HOSTNAME
 python scripts/hardware/zmq_agent_probe.py --endpoint tcp://ROBOT_IP_OR_HOSTNAME:5555 --request status
 ```
 
-If the bridge uses a different schema, keep an adapter in the local SEA-VLA
+If the bridge uses a different schema, keep an adapter in the local TRACE-VLA
 runtime. Do not weaken safety gates in TRACE-VLA just to match a bridge.
 
 ## 5. Dry-run TRACE-VLA scripts
@@ -118,7 +118,7 @@ runtime. Do not weaken safety gates in TRACE-VLA just to match a bridge.
 Rollout evaluation plan inspection:
 
 ```bash
-python scripts/sea_vla_integration/run_stage_b_rollout_eval.py \
+python scripts/robot_runtime/run_rollout_eval.py \
   --config configs/pi05_rollout_then_correction.example.yaml \
   --dry-run
 ```
@@ -126,7 +126,7 @@ python scripts/sea_vla_integration/run_stage_b_rollout_eval.py \
 Correction/demo collection plan inspection:
 
 ```bash
-python scripts/sea_vla_integration/run_stage_b_pre_collection.py \
+python scripts/robot_runtime/run_correction_collection.py \
   --config configs/pi05_rollout_then_correction.example.yaml \
   --dry-run
 ```

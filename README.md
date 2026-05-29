@@ -2,7 +2,7 @@
 
 TRACE-VLA = Trace-based Rollout Adaptation with Correction Evidence for VLA policies.
 
-This repository is an early, private, pre-publication GitHub package extracted from the SEA-VLA work. It intentionally starts from the point where a base robot policy already exists (for example a Pi0.5/OpenPI checkpoint). It does **not** include the initial SFT/training-data pipeline. The intended workflow is:
+This repository is an early, private, pre-publication GitHub package for TRACE-VLA. It intentionally starts from the point where a base robot policy already exists (for example a Pi0.5/OpenPI checkpoint). It does **not** include the initial SFT/training-data pipeline. The intended package workflow is:
 
 1. Serve or load an existing base policy.
 2. Run rollout evaluation on real or replay tasks.
@@ -18,12 +18,12 @@ This repo is deliberately private for pre-publication use. Do not treat it as a 
 
 ```text
 tracevla/
-  stage_b_rl/              # TRACE-VLA core: chunk compiler, eta weights, eval contract, BO
-  stage_b_pre/             # rollout/correction/demo schemas and writer utilities
-  stage_b_rollout_eval/    # fixed-model rollout evaluation plan/writer utilities
-scripts/sea_vla_integration/
-  run_stage_b_rollout_eval.py     # SEA-VLA rollout evaluation reference
-  run_stage_b_pre_collection.py   # correction/demo collection reference
+  weighting/              # TRACE-VLA core: chunk compiler, eta weights, eval contract, BO
+  collection/             # rollout/correction/demo schemas and writer utilities
+  rollout_eval/    # fixed-model rollout evaluation plan/writer utilities
+scripts/robot_runtime/
+  run_rollout_eval.py     # TRACE-VLA rollout evaluation reference
+  run_correction_collection.py   # correction/demo collection reference
 scripts/hardware/
   run_policy_inference.py         # single policy inference smoke runner
   zmq_agent_probe.py              # JSON ZMQ REQ/REP liveness/status probe
@@ -42,7 +42,7 @@ examples/
   eta_candidates.json
   minimal_scores.json
 tests/
-  stage_b_rl/              # lightweight core tests
+  weighting/              # lightweight core tests
 ```
 
 ## Quick install
@@ -57,12 +57,12 @@ pytest -q
 ## Important scope notes
 
 - No raw robot videos, logs, checkpoints, token files, or lab-specific secrets are tracked.
-- The SEA-VLA integration scripts are included as reference adapters; they expect the robot/camera/OpenPI runtime from the SEA-VLA stack.
+- The robot-runtime integration scripts are included as reference adapters; live mode expects a compatible robot/camera/OpenPI runtime supplied outside this package.
 - Validation scores may guide eta selection, but heldout/final test sets must remain untouched until final reporting.
 - Method-specific norm stats must be injected at serving/evaluation time for fair fixed-norm comparisons.
 - TCP/EEF cosine diagnostics are diagnostic only, not robot success metrics.
 
-## Example workflow
+## Example package workflow
 
 See `docs/QUICKSTART_PI05.md` and `configs/pi05_rollout_then_correction.example.yaml`.
 For complete live bring-up, read `docs/HARDWARE_SOFTWARE_SETUP.md`, copy

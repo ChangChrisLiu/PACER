@@ -1,6 +1,6 @@
 # Pre-publication scope
 
-This `TRACE-VLA` package is a GitHub pre-publication extraction from SEA-VLA. It is not the full SEA-VLA repository and is not yet a public release.
+This `TRACE-VLA` package is a GitHub pre-publication extraction from TRACE-VLA. It is not the full TRACE-VLA repository and is not yet a public release.
 
 Included:
 
@@ -9,7 +9,7 @@ Included:
 - Eval-report schema and validation contract.
 - Bayesian-optimization proposal logic over eta candidates.
 - Rollout/correction/demo schemas and writer/evaluation helpers.
-- SEA-VLA hardware integration scripts as reference adapters.
+- TRACE-VLA hardware integration scripts as reference adapters.
 
 Excluded on purpose:
 

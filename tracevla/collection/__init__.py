@@ -1,0 +1,5 @@
+"""TRACE-VLA collection SFT rollout collection helpers for TRACE-VLA."""
+
+from .config import COMPONENT_SEQUENCE, DEFAULT_TRIAL_COUNTS, TASK_INSTRUCTIONS
+
+__all__ = ["COMPONENT_SEQUENCE", "DEFAULT_TRIAL_COUNTS", "TASK_INSTRUCTIONS"]

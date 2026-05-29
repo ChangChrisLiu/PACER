@@ -12,24 +12,24 @@ TRACE-VLA learns from process evidence rather than only final success/failure la
 
 ## Main code entry points
 
-- `tracevla.stage_b_rl.action_chunk_compiler`
+- `tracevla.weighting.action_chunk_compiler`
   - episode/action trace loading
   - chunk generation
   - role/evidence assignment
   - target-distance features
 
-- `tracevla.stage_b_rl.pacer_bo_weights`
+- `tracevla.weighting.pacer_bo_weights`
   - `PacerEta`
   - default eta pool
   - raw score computation
   - stratum normalization
   - clipped loss-weight generation
 
-- `tracevla.stage_b_rl.pacer_eval_contract`
+- `tracevla.weighting.pacer_eval_contract`
   - eval report schema validation
   - guardrails for BO inputs
 
-- `tracevla.stage_b_rl.pacer_bo`
+- `tracevla.weighting.pacer_bo`
   - GP + Expected Improvement candidate proposal over eta settings
 
 ## Claim-control notes
