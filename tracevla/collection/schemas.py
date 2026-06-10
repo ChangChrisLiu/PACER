@@ -14,6 +14,14 @@ StopSource = Literal[
 ]
 
 
+def default_position_tolerance_m(component: str) -> float:
+    """Paper protocol target tolerance: CPU 5 mm, other PACER components 10 mm."""
+    normalized = component.strip().lower().replace(" ", "_").replace("-", "_")
+    if normalized == "cpu":
+        return 0.005
+    return 0.010
+
+
 @dataclass(frozen=True)
 class TargetPoint:
     tcp_pose: list[float]
@@ -32,9 +40,13 @@ class TargetRegion:
     config_id: str
     component: str
     points: list[TargetPoint]
-    position_tolerance_m: float = 0.02
+    position_tolerance_m: float | None = None
     rotation_tolerance_rad: float = 0.35
     source: str = "operator_joystick_points"
+
+    def __post_init__(self) -> None:
+        if self.position_tolerance_m is None:
+            object.__setattr__(self, "position_tolerance_m", default_position_tolerance_m(self.component))
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from tracevla.collection.schemas import default_position_tolerance_m
+
 try:  # scipy is already used by TRACE-VLA scoring; keep fallback for tiny tests.
     from scipy.spatial.transform import Rotation
 except Exception:  # pragma: no cover - fallback path only for minimal envs
@@ -263,7 +265,7 @@ def _pose_error_to_region(tcp_pose: Any, target_region: Mapping[str, Any]) -> di
     pos_tol = _positive_float(raw_pos_tol)
     rot_tol = _positive_float(raw_rot_tol)
     if pos_tol is None and "position_tolerance_m" not in target_region:
-        pos_tol = 0.02
+        pos_tol = default_position_tolerance_m(str(target_region.get("component", "")))
     if rot_tol is None and "rotation_tolerance_rad" not in target_region:
         rot_tol = 0.35
     pose = [float(v) for v in tcp_pose[:6]]

@@ -31,6 +31,12 @@ checkpoints/
 .env.*
 secrets.*
 
-# Local integrations and agent scratch reviews
+# Local integrations, generated examples, and agent scratch reviews
 .local/
 agent_reviews/
+.claude-flow/
+PACER_Framework/demo_output/
+
+# Exception to the *.jsonl rule above: contract-valid example templates that
+# ship with the framework (PACER_Framework/tests/test_examples.py reads them).
+!PACER_Framework/examples/*.jsonl

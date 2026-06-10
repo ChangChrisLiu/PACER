@@ -37,21 +37,25 @@ ABLATION_WEIGHT_MODES = frozenset(
 class PacerEta:
     """Candidate evidence-to-weight parameters.
 
-    Base weights are normalized over the fixed evidence components. Multipliers
-    adjust role-specific credit after the base evidence score is computed.
+    Base weights are the paper's declared evidence coefficients. Multipliers
+    adjust role-specific credit in the final row-weight equation.
     """
 
     progress: float = 0.30
     proximity: float = 0.45
     terminal: float = 0.15
+    direction: float = 0.00
     stop: float = 0.05
     operator: float = 0.05
+    provenance: float = 0.00
     correction_multiplier: float = 1.20
     demo_multiplier: float = 1.00
     partial_multiplier: float = 0.60
     success_multiplier: float = 1.00
+    failure_multiplier: float = 0.00
+    excluded_multiplier: float = 0.00
     tau: float = 1.00
-    w_min: float = 0.05
+    w_min: float = 0.00
     w_max: float = 4.50
     clean_demo_floor: float = 0.80
     human_correction_floor: float = 0.65
@@ -61,8 +65,8 @@ class PacerEta:
         "correction_multiplier", "partial_multiplier", "tau", "w_max",
     )
     FIXED_DIMS = (
-        "operator", "demo_multiplier", "success_multiplier",
-        "w_min", "clean_demo_floor", "human_correction_floor",
+        "direction", "operator", "provenance", "demo_multiplier", "success_multiplier",
+        "failure_multiplier", "excluded_multiplier", "clean_demo_floor", "human_correction_floor",
     )
     SEARCH_RANGES = {
         "progress": (0.10, 0.60),
@@ -75,17 +79,25 @@ class PacerEta:
         "w_max": (2.00, 5.00),
     }
 
-    def normalized_components(self) -> dict[str, float]:
+    def components(self) -> dict[str, float]:
         raw = {
             "progress": max(0.0, float(self.progress)),
             "proximity": max(0.0, float(self.proximity)),
             "terminal": max(0.0, float(self.terminal)),
+            "direction": max(0.0, float(self.direction)),
             "stop": max(0.0, float(self.stop)),
             "operator": max(0.0, float(self.operator)),
+            "provenance": max(0.0, float(self.provenance)),
         }
         total = sum(raw.values())
         if total <= 0:
             raise ValueError("At least one base evidence weight must be positive")
+        return raw
+
+    def normalized_components(self) -> dict[str, float]:
+        """Deprecated compatibility view; PACER scoring uses raw components."""
+        raw = self.components()
+        total = sum(raw.values())
         return {k: v / total for k, v in raw.items()}
 
     def to_dict(self) -> dict[str, Any]:
@@ -129,7 +141,7 @@ DEFAULT_ETA_POOL: dict[str, PacerEta] = {
     "terminal_stop_heavy": PacerEta(progress=0.20, proximity=0.25, terminal=0.35, stop=0.15, operator=0.05),
     "correction_heavy": PacerEta(correction_multiplier=1.80, partial_multiplier=0.70, w_max=4.5),
     "conservative": PacerEta(tau=1.50, w_max=2.5, partial_multiplier=0.40),
-    "ram_connector_recovery": PacerEta(progress=0.45, proximity=0.30, terminal=0.10, stop=0.05, operator=0.10, correction_multiplier=1.70, partial_multiplier=0.90, w_max=5.0),
+    "ram_connector_recovery": PacerEta(progress=0.45, proximity=0.30, terminal=0.10, stop=0.05, correction_multiplier=1.70, partial_multiplier=0.90, w_max=5.0),
     "balanced_low_clip": PacerEta(tau=0.85, w_max=3.5),
 }
 
@@ -168,6 +180,26 @@ def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
+def _valid_mask_mass(row: Mapping[str, Any]) -> bool:
+    mask = nested_get(row, "masks.policy_loss_mask", []) or []
+    if not isinstance(mask, list) or len(mask) == 0:
+        return False
+    values = [as_float(v, -1.0) for v in mask]
+    return all(v >= 0.0 for v in values) and any(v > 0.0 for v in values)
+
+
+def _provenance_ok(row: Mapping[str, Any]) -> bool:
+    if nested_get(row, "returns.aw_fma_loss_eligible", None) is False:
+        return False
+    if bool(nested_get(row, "eligibility.quarantined", False)):
+        return False
+    if nested_get(row, "returns.aw_fma_vlm_authority_used", False) is not False:
+        return False
+    if nested_get(row, "semantic_sidecar.vlm_authority_used", False) is not False:
+        return False
+    return _valid_mask_mass(row)
+
+
 def _chunk_local_evidence_components(row: Mapping[str, Any]) -> dict[str, float] | None:
     """Derive PACER evidence directly from per-chunk trajectory geometry.
 
@@ -198,13 +230,19 @@ def _chunk_local_evidence_components(row: Mapping[str, Any]) -> dict[str, float]
     ) else 0.0
     stop = 1.0 if nested_get(row, "reward.stop_source") in {"model_stop_token", "manual_stop_near_target"} else 0.0
     operator = max(0.0, as_float(nested_get(row, "returns.rank_weight_unvalidated"), 0.0))
+    direction = as_float(chunk.get("direction") or chunk.get("target_direction_cosine"), default=0.0)
+    provenance = 1.0 if _provenance_ok(row) else 0.0
+    target_ok, _target_reasons = target_match(row)
+    target_factor = 1.0 if target_ok else 0.0
 
     return {
-        "progress": _clamp01(progress),
-        "proximity": _clamp01(proximity),
-        "terminal": _clamp01(terminal),
+        "progress": target_factor * _clamp01(progress),
+        "proximity": target_factor * _clamp01(proximity),
+        "terminal": target_factor * _clamp01(terminal),
+        "direction": target_factor * _clamp01(direction),
         "stop": _clamp01(stop),
         "operator": _clamp01(operator),
+        "provenance": _clamp01(provenance),
     }
 
 
@@ -232,18 +270,31 @@ def evidence_components(row: Mapping[str, Any]) -> dict[str, float]:
     terminal_default = chunk_evidence["terminal"] if chunk_evidence is not None else (1.0 if nested_get(row, "reward.inside_region", False) else 0.0)
     stop_default = chunk_evidence["stop"] if chunk_evidence is not None else (1.0 if nested_get(row, "reward.stop_source") in {"model_stop_token", "manual_stop_near_target"} else 0.0)
     operator_default = chunk_evidence["operator"] if chunk_evidence is not None else max(0.0, as_float(nested_get(row, "returns.rank_weight_unvalidated"), 0.0))
+    direction_default = chunk_evidence["direction"] if chunk_evidence is not None else 0.0
+    provenance_default = chunk_evidence["provenance"] if chunk_evidence is not None else (1.0 if _provenance_ok(row) else 0.0)
 
     progress = as_float(comps.get("r_progress_signed01") if isinstance(comps, Mapping) else None, default=progress_default)
     proximity = as_float(comps.get("r_proximity") if isinstance(comps, Mapping) else None, default=proximity_default)
     terminal = as_float(comps.get("r_terminal") if isinstance(comps, Mapping) else None, default=terminal_default)
     stop = as_float(comps.get("r_stop_handoff") if isinstance(comps, Mapping) else None, default=stop_default)
     operator = as_float(comps.get("r_operator_rank") if isinstance(comps, Mapping) else None, default=operator_default)
+    direction = as_float(comps.get("r_direction") if isinstance(comps, Mapping) else None, default=direction_default)
+    provenance = as_float(comps.get("r_provenance") if isinstance(comps, Mapping) else None, default=provenance_default)
+
+    # Paper eq. app_geom: the target-consistency indicator T_i multiplies the
+    # geometric evidence channels only. Operator/stop/provenance evidence stay
+    # readable for audit, while wrong-target outcome labels are additionally
+    # role-gated to zero weight upstream of this function.
+    target_ok, _target_reasons = target_match(row)
+    target_factor = 1.0 if target_ok else 0.0
     return {
-        "progress": _clamp01(progress),
-        "proximity": _clamp01(proximity),
-        "terminal": _clamp01(terminal),
+        "progress": target_factor * _clamp01(progress),
+        "proximity": target_factor * _clamp01(proximity),
+        "terminal": target_factor * _clamp01(terminal),
+        "direction": target_factor * _clamp01(direction),
         "stop": _clamp01(stop),
         "operator": _clamp01(operator),
+        "provenance": _clamp01(provenance),
     }
 
 
@@ -371,18 +422,26 @@ def hard_gate(row: Mapping[str, Any], *, require_train_split: bool = True) -> tu
         reasons.append("returns_vlm_authority_used")
     if nested_get(row, "semantic_sidecar.vlm_authority_used", False) is not False:
         reasons.append("semantic_vlm_authority_used")
-    # Target identity is enforced by using the declared active target in evidence
-    # construction and by validation-time wrong-target hard failures.  The
-    # training gate does not add an extra target-mismatch factor, so changing the
-    # validation target rule does not silently change an in-flight training run.
-    mask = nested_get(row, "masks.policy_loss_mask", []) or []
-    if not isinstance(mask, list) or len(mask) == 0 or any(as_float(v, -1.0) < 0 for v in mask):
+    # Target identity is enforced inside evidence construction (target-metadata
+    # inconsistency zeroes the geometric evidence channels via the T_i factor)
+    # and by validation-time wrong-target hard failures. The training gate does
+    # not add an extra target-mismatch factor, so changing the validation target
+    # rule does not silently change an in-flight training run.
+    # G_mask requires nonzero valid mask mass: an all-zero policy_loss_mask row
+    # can contribute no loss horizon and must not count as trainable.
+    if not _valid_mask_mass(row):
         reasons.append("invalid_policy_loss_mask")
     return len(reasons) == 0, reasons
 
 
 def raw_score(row: Mapping[str, Any], eta: PacerEta) -> float:
-    weights = eta.normalized_components()
+    """Process score s_eta(i) = sum_k beta_k * e_k(i) over the paper evidence vector.
+
+    Coefficients are the raw declared beta values (no unit-sum renormalization),
+    matching the paper's process-score definition. The role multiplier is applied
+    here so role-stratified centering sees the role-adjusted score.
+    """
+    weights = eta.components()
     comps = evidence_components(row)
     base = sum(weights[k] * comps[k] for k in weights)
     return max(0.0, min(1.0, base * role_multiplier(row, eta)))

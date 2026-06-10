@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from .config import COMPONENT_SEQUENCE
-from .schemas import TargetPoint, TargetRegion
+from .schemas import TargetPoint, TargetRegion, default_position_tolerance_m
 
 PLANNER_REFERENCE_CACHE_SCHEMA = "tracevla_planner_reference_cache.v0.1"
 PLANNER_REFERENCE_BINDING_SCHEMA = "tracevla_planner_reference_binding.v0.1"
@@ -257,7 +257,9 @@ class PlannerReferenceCache:
             config_id=str(region_payload.get("config_id", self._payload.get("config_id", ""))),
             component=str(region_payload.get("component", component)),
             points=points,
-            position_tolerance_m=float(region_payload.get("position_tolerance_m", 0.02)),
+            position_tolerance_m=float(
+                region_payload.get("position_tolerance_m", default_position_tolerance_m(component))
+            ),
             rotation_tolerance_rad=float(region_payload.get("rotation_tolerance_rad", 0.35)),
             source=str(region_payload.get("source", "operator_joystick_points")),
         )

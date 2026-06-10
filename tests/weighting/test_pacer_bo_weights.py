@@ -3,6 +3,7 @@ from pathlib import Path
 
 from tracevla.weighting.pacer_bo_weights import (
     ABLATION_WEIGHT_MODES,
+    DEFAULT_ETA_POOL,
     PACER_ABLATION_WEIGHT_SCHEMA_VERSION,
     PacerEta,
     compute_ablation_weights,
@@ -10,6 +11,7 @@ from tracevla.weighting.pacer_bo_weights import (
     evidence_components,
     freeze_config_splits,
     hard_gate,
+    raw_score,
     target_match,
 )
 
@@ -157,31 +159,7 @@ def test_hard_gate_blocks_explicit_false_loss_eligibility():
     assert "not_aw_fma_loss_eligible" in reasons
 
 
-def test_wrong_target_metadata_is_diagnostic_not_a_training_gate():
-    row = _row(role="model_success")
-    row["target"] = {
-        "active_target_id": "ram_slot_1",
-        "geometry_target_id": "connector_slot_2",
-        "target_consistency": "wrong_target",
-    }
-    row["returns"]["aw_fma_reward_components"].update(
-        {
-            "r_progress_signed01": 1.0,
-            "r_proximity": 1.0,
-            "r_terminal": 1.0,
-        }
-    )
-
-    target_ok, target_reasons = target_match(row)
-    gate_ok, gate_reasons = hard_gate(row)
-
-    assert target_ok is False
-    assert "target_consistency_wrong" in target_reasons
-    assert gate_ok is True
-    assert "target_mismatch_no_positive_imitation" not in gate_reasons
-
-
-def test_wrong_target_metadata_does_not_change_training_weights():
+def test_evidence_components_exposes_full_paper_vector_and_zeroes_wrong_target_geometry():
     row = _row(role="model_success")
     row["target"] = {
         "active_target_id": "cpu_fan",
@@ -189,20 +167,55 @@ def test_wrong_target_metadata_does_not_change_training_weights():
         "observed_target_id": "ram",
         "target_consistency": "wrong_target",
     }
+    row["returns"]["aw_fma_reward_components"].update(
+        {
+            "r_progress_signed01": 1.0,
+            "r_proximity": 1.0,
+            "r_terminal": 1.0,
+            "r_direction": 1.0,
+            "r_provenance": 1.0,
+        }
+    )
 
-    pacer_rows, pacer_manifest = compute_pacer_weights([row], PacerEta(), eta_id="unit")
-    assert pacer_rows[0]["returns"]["tracevla_weight"] > 0.0
-    assert "target_mismatch_no_positive_imitation" not in pacer_rows[0]["returns"]["tracevla_loss_ineligible_reasons"]
-    assert pacer_manifest["safety_leakage"] == {}
+    target_ok, target_reasons = target_match(row)
+    comps = evidence_components(row)
 
-    for mode in sorted(ABLATION_WEIGHT_MODES):
-        out, manifest = compute_ablation_weights([row], mode=mode, eta=PacerEta(), eta_id="unit")
-        if mode in {"clean_demo_only", "correction_only"}:
-            assert out[0]["returns"]["loss_weight"] == 0.0
-        else:
-            assert out[0]["returns"]["loss_weight"] > 0.0
-        assert "target_mismatch_no_positive_imitation" not in out[0]["returns"]["tracevla_ablation_ineligible_reasons"]
-        assert manifest["safety_leakage"] == {}
+    assert target_ok is False
+    assert "target_consistency_wrong" in target_reasons
+    assert set(comps) == {"progress", "proximity", "terminal", "direction", "stop", "operator", "provenance"}
+    assert comps["progress"] == 0.0
+    assert comps["proximity"] == 0.0
+    assert comps["terminal"] == 0.0
+    assert comps["direction"] == 0.0
+    assert comps["operator"] > 0.0
+    assert comps["provenance"] == 1.0
+
+
+def test_all_zero_policy_loss_mask_fails_hard_gate():
+    row = _row(role="clean_demo")
+    row["masks"]["policy_loss_mask"] = [0] * 10
+
+    ok, reasons = hard_gate(row)
+
+    assert ok is False
+    assert "invalid_policy_loss_mask" in reasons
+
+
+def test_pacer_weight_uses_raw_beta_coefficients_not_unit_normalized():
+    row = _row(role="model_success")
+    row["returns"]["aw_fma_reward_components"].update(
+        {
+            "r_progress_signed01": 1.0,
+            "r_proximity": 0.0,
+            "r_terminal": 0.0,
+            "r_stop_handoff": 0.0,
+            "r_operator_rank": 0.0,
+        }
+    )
+    eta = PacerEta(progress=0.45, proximity=0.30, terminal=0.10, stop=0.05, operator=0.05)
+
+    assert abs(sum(eta.components().values()) - 0.95) < 1e-12
+    assert raw_score(row, eta) == 0.45
 
 
 def test_freeze_config_splits_falls_back_to_trial_groups_when_single_config():
@@ -251,6 +264,13 @@ def test_ablation_factory_preserves_rows_and_zeroes_non_train():
             assert ret["loss_weight"] == 0.0
             assert ret["tracevla_ablation_weight"] == 0.0
             assert "non_train_split" in ret["tracevla_ablation_ineligible_reasons"]
+
+
+def test_default_eta_pool_keeps_operator_as_fixed_protocol_dimension():
+    for eta_id, eta in DEFAULT_ETA_POOL.items():
+        assert eta.operator == PacerEta().operator, eta_id
+        assert "operator" not in PacerEta.FREE_DIMS
+        assert "operator" in PacerEta.FIXED_DIMS
 
 
 def test_ablation_modes_select_expected_training_rows():

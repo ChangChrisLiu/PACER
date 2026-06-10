@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pacer-framework"
+version = "0.1.0"
+description = "Robot/VLA-agnostic reference implementation of PACER: process-aware correction and evidence reweighting for VLA post-training."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "build>=1"]
+# These extras are intentionally light hints, not full robot/model stacks.
+# Install ROS 2, OpenPI, CUDA-specific PyTorch/JAX, and vendor SDKs from their
+# official instructions when your integration needs them.
+vla-transformers = ["transformers>=4.40", "accelerate>=0.30"]
+lerobot = ["lerobot"]
+zmq = ["pyzmq>=25"]
+
+[tool.setuptools]
+packages = ["pacer_framework"]

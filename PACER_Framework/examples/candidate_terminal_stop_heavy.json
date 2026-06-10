@@ -1,0 +1,19 @@
+{
+  "beta_prog": 0.20,
+  "beta_prox": 0.25,
+  "beta_term": 0.35,
+  "beta_stop": 0.15,
+  "gamma_correction": 1.20,
+  "gamma_partial": 0.60,
+  "tau": 1.00,
+  "w_max": 4.50,
+  "beta_dir": 0.00,
+  "beta_op": 0.05,
+  "beta_prov": 0.00,
+  "gamma_clean": 1.00,
+  "gamma_auto_success": 1.00,
+  "gamma_failure": 0.00,
+  "gamma_excluded": 0.00,
+  "f_clean": 0.80,
+  "f_corr": 0.65
+}
