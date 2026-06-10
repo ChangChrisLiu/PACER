@@ -1,4 +1,4 @@
-"""Stop-source x feedback-label compatibility table for TRACE-VLA collection.
+"""Stop-source x feedback-label compatibility table for PACER collection.
 
 This module is the single source of truth for which `(stop_source, label)`
 pairs may be saved as clean accepted feedback. Invalid pairs encode operator
@@ -21,7 +21,7 @@ from .config import (
     PLANNER_SKILL_FEEDBACK_LABELS,
 )
 
-# Block names mirror src.tracevla_pre.schemas.BlockName
+# Block names mirror src.pacer_pre.schemas.BlockName
 BlockName = str
 StopSource = str
 

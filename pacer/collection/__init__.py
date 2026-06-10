@@ -1,4 +1,4 @@
-"""TRACE-VLA collection SFT rollout collection helpers for TRACE-VLA."""
+"""PACER collection SFT rollout collection helpers for PACER."""
 
 from .config import COMPONENT_SEQUENCE, DEFAULT_TRIAL_COUNTS, TASK_INSTRUCTIONS
 

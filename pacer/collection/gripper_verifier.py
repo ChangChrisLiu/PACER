@@ -109,7 +109,7 @@ def verify_gripper(component: str, cmd: int | None, obs: int | None, event: str 
         success = None if obs_ok is None else bool(obs_ok)
     elif rule.rule == "obs_le_threshold":
         # Historical compatibility for any legacy rule object injected by a
-        # test or downstream caller. Current TRACE-VLA rules use strict <.
+        # test or downstream caller. Current PACER rules use strict <.
         obs_ok = None if obs is None or rule.obs_threshold is None else int(obs) <= rule.obs_threshold
         success = None if obs_ok is None else bool(obs_ok)
     elif rule.rule == "gap_ge_threshold":

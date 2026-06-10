@@ -1,7 +1,7 @@
-"""Read-only TRACE-VLA action-chunk compiler for offline RW-FMA.
+"""Read-only PACER action-chunk compiler for offline RW-FMA.
 
 This module is deliberately conservative.  It compiles *candidate* policy
-training rows from saved TRACE-VLA rollout episodes, but it does not train, merge,
+training rows from saved PACER rollout episodes, but it does not train, merge,
 or command hardware.  The first supported target is Pi0.5/OpenPI RW-FMA:
 nonnegative return/rank-weighted native flow-matching over aligned 10-step,
 external 7-D action chunks.
@@ -25,16 +25,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from tracevla.collection.schemas import default_position_tolerance_m
+from pacer.collection.schemas import default_position_tolerance_m
 
-try:  # scipy is already used by TRACE-VLA scoring; keep fallback for tiny tests.
+try:  # scipy is already used by PACER scoring; keep fallback for tiny tests.
     from scipy.spatial.transform import Rotation
 except Exception:  # pragma: no cover - fallback path only for minimal envs
     Rotation = None
 
-ACTION_CHUNK_SCHEMA_VERSION = "tracevla_action_chunks.v0.2"
-TRIAL_SCHEMA_VERSION = "tracevla_trials.v0.1"
-SEGMENT_SCHEMA_VERSION = "tracevla_segments.v0.1"
+ACTION_CHUNK_SCHEMA_VERSION = "pacer_action_chunks.v0.2"
+TRIAL_SCHEMA_VERSION = "pacer_trials.v0.1"
+SEGMENT_SCHEMA_VERSION = "pacer_segments.v0.1"
 EXPECTED_HORIZON = 10
 EXPECTED_ACTION_DIM = 7
 PLANNER_BLOCKS = {"planner_only", "planner_skill"}
@@ -106,7 +106,7 @@ def _episode_id(ep: Path) -> str:
 
 def _infer_source(ep: Path) -> dict[str, Any]:
     parts = ep.parts
-    # .../tracevla_correction_rollouts/config_XXX/block/component/trial
+    # .../pacer_correction_rollouts/config_XXX/block/component/trial
     config_id = block = component = None
     for i, part in enumerate(parts):
         if part.startswith("config_") and i + 3 < len(parts):
@@ -532,7 +532,7 @@ def _chunk_local_distance_features(
 def _trial_final_block(auto_score: Mapping[str, Any], target_region: Mapping[str, Any]) -> dict[str, Any]:
     """Trial-level final pose distance block, including hybrid fields.
 
-    Used for both model rows and human rows when ``tracevla_auto_score.json``
+    Used for both model rows and human rows when ``pacer_auto_score.json``
     carries finite geometry; reverts to nulls otherwise.
     """
     if not isinstance(auto_score, Mapping):
@@ -647,7 +647,7 @@ def _vlmb_categorical_sidecar(sample_role: str, phase_gate: Mapping[str, Any], q
     quality = str(phase_gate.get("previous_chunk_quality_label") or "not_judgeable")
     return {
         "vlm_authority_used": False,
-        "vlmb_feedback_schema": "tracevla_geometry_feedback.v0.1",
+        "vlmb_feedback_schema": "pacer_geometry_feedback.v0.1",
         "progress_class": phase_gate.get("hover_progress_class") if phase_gate.get("active_distance_target") == "hover_approach" else phase_gate.get("final_progress_class"),
         "previous_chunk_quality": quality,
         "suggested_next_planner_constraint": phase_gate.get("suggested_next_planner_constraint_label"),
@@ -689,7 +689,7 @@ def _human_segment_chunk_rows(
     role = _role_for_segment(trial_row.get("block"), segment)
     # Non-overlapping 1-second windows inside each contiguous non-auto-motion run:
     # observation at frame i, targets i+1..i+10. Never stitch across auto/homing gaps.
-    auto_score = _read_json(ep / "tracevla_auto_score.json")
+    auto_score = _read_json(ep / "pacer_auto_score.json")
     for run in frame_runs:
         for local_start in range(0, max(0, len(run) - EXPECTED_HORIZON), EXPECTED_HORIZON):
             obs_global_idx, obs_frame = run[local_start]
@@ -723,7 +723,7 @@ def _human_segment_chunk_rows(
             aw_returns = _aw_fma_returns_block(aw_info, sample_role, quarantined, quarantine_reasons, stratum_key)
             rows.append({
             "schema": ACTION_CHUNK_SCHEMA_VERSION,
-            "row_kind": "tracevla_rl_action_chunk",
+            "row_kind": "pacer_rl_action_chunk",
             "row_id": f"chunk:{trial_row.get('trial_id')}:seg{segment.get('segment_id')}:h{obs_global_idx:04d}",
             "trial_id": trial_row.get("trial_id"),
             "episode_dir": rel_ep,
@@ -791,7 +791,7 @@ def _human_segment_chunk_rows(
                 "source": "human_segment_frame_trajectory",
                 "episode_meta_sha256": _sha256_file(ep / "episode_meta.json"),
                 "target_region_sha256": _sha256_file(ep / "target_region.json"),
-                "tracevla_trial_feedback_sha256": _sha256_file(ep / "tracevla_trial_feedback.json"),
+                "pacer_trial_feedback_sha256": _sha256_file(ep / "pacer_trial_feedback.json"),
             },
         })
     return rows
@@ -882,7 +882,7 @@ def _route_reward_components(chunk_local: Mapping[str, Any], sample_role: str) -
     else:
         r_route = 0.0
     return {
-        "reward_version": "tracevla_route_reward.v0.1",
+        "reward_version": "pacer_route_reward.v0.1",
         "reward_authority": "robot_trace_target_region_human_route_operator_label",
         "semantic_gate": True,
         "role_gate": sample_role in {"clean_demo", "human_correction", "model_success", "model_partial"},
@@ -941,7 +941,7 @@ def _policy_loss_mask(sample_role: str, weight: float, chunk_local: Mapping[str,
     return [round(float(v / mean), 6) for v in raw]
 
 
-AW_FMA_REWARD_VERSION = "tracevla_aw_fma_reward.v0.1"
+AW_FMA_REWARD_VERSION = "pacer_aw_fma_reward.v0.1"
 AW_FMA_MIN_STRATUM_N = 4
 
 
@@ -1248,8 +1248,8 @@ def compile_episode_action_chunks(ep: Path, *, repo_root: Path | None = None) ->
     repo_root = Path(repo_root) if repo_root is not None else ep.parents[4]
     source = _infer_source(ep)
     meta = _read_json(ep / "episode_meta.json")
-    feedback = _read_json(ep / "tracevla_trial_feedback.json")
-    auto_score = _read_json(ep / "tracevla_auto_score.json")
+    feedback = _read_json(ep / "pacer_trial_feedback.json")
+    auto_score = _read_json(ep / "pacer_auto_score.json")
     target_region = _read_json(ep / "target_region.json")
     trace = _read_jsonl(ep / "vla_action_trace.jsonl")
     label = feedback.get("label")
@@ -1282,7 +1282,7 @@ def compile_episode_action_chunks(ep: Path, *, repo_root: Path | None = None) ->
         segment_hover_by_id[seg_id] = hover_score
         segment_rows.append({
             "schema": SEGMENT_SCHEMA_VERSION,
-            "row_kind": "tracevla_rl_segment",
+            "row_kind": "pacer_rl_segment",
             "row_id": f"seg:{trial_id}:{seg_id}",
             "trial_id": trial_id,
             "episode_dir": rel_ep,
@@ -1302,7 +1302,7 @@ def compile_episode_action_chunks(ep: Path, *, repo_root: Path | None = None) ->
 
     trial_row = {
         "schema": TRIAL_SCHEMA_VERSION,
-        "row_kind": "tracevla_rl_trial",
+        "row_kind": "pacer_rl_trial",
         "trial_id": trial_id,
         "episode_dir": rel_ep,
         "config_id": source.get("config_id") or meta.get("config_id"),
@@ -1420,7 +1420,7 @@ def compile_episode_action_chunks(ep: Path, *, repo_root: Path | None = None) ->
         aw_returns = _aw_fma_returns_block(aw_info, sample_role, quarantined, quarantine_reasons, stratum_key)
         chunk_rows.append({
             "schema": ACTION_CHUNK_SCHEMA_VERSION,
-            "row_kind": "tracevla_rl_action_chunk",
+            "row_kind": "pacer_rl_action_chunk",
             "row_id": f"chunk:{trial_id}:q{query_index:04d}",
             "trial_id": trial_id,
             "episode_dir": rel_ep,
@@ -1496,8 +1496,8 @@ def compile_episode_action_chunks(ep: Path, *, repo_root: Path | None = None) ->
                 "vla_action_trace_sha256": _sha256_file(ep / "vla_action_trace.jsonl"),
                 "episode_meta_sha256": _sha256_file(ep / "episode_meta.json"),
                 "target_region_sha256": _sha256_file(ep / "target_region.json"),
-                "tracevla_auto_score_sha256": _sha256_file(ep / "tracevla_auto_score.json"),
-                "tracevla_trial_feedback_sha256": _sha256_file(ep / "tracevla_trial_feedback.json"),
+                "pacer_auto_score_sha256": _sha256_file(ep / "pacer_auto_score.json"),
+                "pacer_trial_feedback_sha256": _sha256_file(ep / "pacer_trial_feedback.json"),
             },
         })
 
@@ -1973,11 +1973,11 @@ def _write_aw_fma_sidecars(result: CompileResult, output_dir: Path) -> None:
 
 def _readme(report: Mapping[str, Any]) -> str:
     counts = report.get("counts", {})
-    return f"""# TRACE-VLA RL action-chunk dry-run dataset
+    return f"""# PACER RL action-chunk dry-run dataset
 
 Schema: `{ACTION_CHUNK_SCHEMA_VERSION}`
 
-This directory is a read-only offline compiler product for TRACE-VLA TRACE-VLA
+This directory is a read-only offline compiler product for PACER PACER
 Pi0.5/OpenPI RW-FMA preparation. It is not a training run and does not authorize
 live robot control.
 

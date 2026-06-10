@@ -234,7 +234,7 @@ class RolloutEvalWriter:
             "ended_at_ts": float(ended_at_ts),
             "final_tcp": list(final_tcp) if final_tcp is not None else None,
             "num_frames": len(frames),
-            "schema_version": "tracevla_rollout_eval.v0.1",
+            "schema_version": "pacer_rollout_eval.v0.1",
             "trial_mode": "rollout_eval",
         }
         write_json(episode_dir / "episode_meta.json", episode_meta)

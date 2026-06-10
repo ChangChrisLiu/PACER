@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from typing import Any, Mapping
 
-PACER_BO_EVAL_SCHEMA_VERSION = "tracevla_bo_eval_scores.v0.1"
+PACER_BO_EVAL_SCHEMA_VERSION = "pacer_bo_eval_scores.v0.1"
 
 REQUIRED_BO_SCORE_KEYS = frozenset(
     {
@@ -49,7 +49,7 @@ RECOMMENDED_J_B_VAL_WEIGHTS = {
 
 
 def compute_recommended_j_b_val(scores: Mapping[str, Any]) -> float:
-    """Compute a VLM-free TRACE-VLA validation objective for PACER selection.
+    """Compute a VLM-free PACER validation objective for PACER selection.
 
     This intentionally includes the two failure modes observed on the previous
     RW-FMA 8499 checkpoint: weak stop-token emission and angled/lateral

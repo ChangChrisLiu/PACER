@@ -1,4 +1,4 @@
-"""10 Hz inference runner with VLA action tracing for TRACE-VLA collection.
+"""10 Hz inference runner with VLA action tracing for PACER collection.
 
 This module is written to be testable without robot hardware. Hardware callers
 pass real observation/model/action callbacks; tests pass fakes.
@@ -112,7 +112,7 @@ class TracedChunkRunner:
             frame = build_frame(obs)
             frame["phase"] = phase
             frame["control_source"] = f"model_{phase}"
-            frame["tracevla_step"] = step
+            frame["pacer_step"] = step
             frames.append(frame)
             frame_idx = len(frames) - 1
 

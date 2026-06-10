@@ -1,4 +1,4 @@
-from tracevla.weighting.pacer_eval_contract import (
+from pacer.weighting.pacer_eval_contract import (
     PACER_BO_EVAL_SCHEMA_VERSION,
     REQUIRED_BO_SCORE_KEYS,
     compute_recommended_j_b_val,

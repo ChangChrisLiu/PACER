@@ -1,4 +1,4 @@
-"""TRACE-VLA offline RW-FMA dataset and training-prep utilities."""
+"""PACER offline RW-FMA dataset and training-prep utilities."""
 
 from .action_chunk_compiler import (
     ACTION_CHUNK_SCHEMA_VERSION,

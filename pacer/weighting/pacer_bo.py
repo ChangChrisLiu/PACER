@@ -22,10 +22,10 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import ConstantKernel, Matern, WhiteKernel
 
-from tracevla.weighting.pacer_bo_weights import DEFAULT_ETA_POOL, PacerEta
-from tracevla.weighting.pacer_eval_contract import validate_pacer_bo_eval_report
+from pacer.weighting.pacer_bo_weights import DEFAULT_ETA_POOL, PacerEta
+from pacer.weighting.pacer_eval_contract import validate_pacer_bo_eval_report
 
-PACER_BO_PROPOSAL_SCHEMA_VERSION = "tracevla_bo_proposals.v0.1"
+PACER_BO_PROPOSAL_SCHEMA_VERSION = "pacer_bo_proposals.v0.1"
 
 
 class NoCandidateProposalsError(RuntimeError):
@@ -108,7 +108,7 @@ def _eta_id_from_score_path(score_path: Path) -> str:
 
 def _canonical_pool_key(eta_id: str) -> str | None:
     key = eta_id
-    for prefix in ("tracevla_pacer_eta_", "tracevla_eta_", "eta_", "tracevla_pacer_", "tracevla_"):
+    for prefix in ("pacer_pacer_eta_", "pacer_eta_", "eta_", "pacer_pacer_", "pacer_"):
         if key.startswith(prefix):
             key = key[len(prefix) :]
     # Full checkpoint dirs also carry job ids: pacer_pacer_eta_rw_like_18634958.

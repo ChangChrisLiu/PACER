@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# TRACE-VLA pre-publication integration script.
+# PACER pre-publication integration script.
 # This script is copied from the external robot runtime and expects the robot/camera/OpenPI
-# adapters from TRACE-VLA to be importable. It is intentionally included as an integration
+# adapters from PACER to be importable. It is intentionally included as an integration
 # reference, not as a standalone hardware driver.
 
-"""TRACE-VLA collection SFT rollout collection entrypoint.
+"""PACER collection SFT rollout collection entrypoint.
 
 This script provides the operator workflow described in
-the internal TRACE-VLA TRACE-VLA collection implementation plan.
+the internal PACER PACER collection implementation plan.
 
 Hardware modes intentionally keep the physical joystick mapping unchanged. The
 script interprets L25 differently by state: target/failure pose capture rather
@@ -57,11 +57,11 @@ except ModuleNotFoundError as exc:  # pragma: no cover - integration-only fallba
 def _require_robot_runtime_runtime() -> None:
     if _ROBOT_RUNTIME_IMPORT_ERROR is not None:
         raise SystemExit(
-            "This is a TRACE-VLA pre-publication robot-runtime integration reference. "
+            "This is a PACER pre-publication robot-runtime integration reference. "
             "Live collection requires the full external robot runtime on PYTHONPATH. "
             f"Original import error: {_ROBOT_RUNTIME_IMPORT_ERROR}"
         )
-from tracevla.collection.config import (
+from pacer.collection.config import (
     COMPONENT_SEQUENCE,
     CORRECTOR_FEEDBACK_LABELS,
     DEFAULT_FPS,
@@ -79,13 +79,13 @@ from tracevla.collection.config import (
     PLANNER_SKILL_FEEDBACK_LABELS,
     TASK_INSTRUCTIONS,
 )
-from tracevla.collection.feedback import prompt_label, wait_for_enter
-from tracevla.collection.gripper_verifier import GripperVerification, verify_gripper
-from tracevla.collection.inference_runner import GripperCapConfig, TracedChunkRunner
-from tracevla.collection.scoring import score_model_rollout_performance, score_planner_final_pose
-from tracevla.collection.schemas import Feedback, TargetPoint, TargetRegion, TrialSpec
-from tracevla.collection.teleop_capture import TeleopCaptureController, TeleopThread
-from tracevla.collection.trial_plan import (
+from pacer.collection.feedback import prompt_label, wait_for_enter
+from pacer.collection.gripper_verifier import GripperVerification, verify_gripper
+from pacer.collection.inference_runner import GripperCapConfig, TracedChunkRunner
+from pacer.collection.scoring import score_model_rollout_performance, score_planner_final_pose
+from pacer.collection.schemas import Feedback, TargetPoint, TargetRegion, TrialSpec
+from pacer.collection.teleop_capture import TeleopCaptureController, TeleopThread
+from pacer.collection.trial_plan import (
     COLLECTION_ORDER_CHOICES,
     COLLECTION_ORDERS,
     COMPONENT_MAJOR_PLANNER_THEN_CORRECTOR,
@@ -98,7 +98,7 @@ from tracevla.collection.trial_plan import (
     canonical_collection_order,
     normalize_config_id,
 )
-from tracevla.collection.reference_cache import (
+from pacer.collection.reference_cache import (
     CorrectorStartPoseCache,
     PlannerReferenceCache,
     build_planner_reference_binding,
@@ -106,7 +106,7 @@ from tracevla.collection.reference_cache import (
     resolve_planner_skill_target_group,
     resolve_target_group,
 )
-from tracevla.collection.writer import CorrectionCollectionWriter, write_json
+from pacer.collection.writer import CorrectionCollectionWriter, write_json
 
 PLANNER_ONLY_FAILURE_LABELS = {
     # V0.7 failure labels.
@@ -123,7 +123,7 @@ PLANNER_ONLY_FAILURE_LABELS = {
     "no_stop_timeout",
     "manual_stop_bad",
 }
-# TRACE-VLA V0.1: unsafe_abort is not eligible for recovery/full-demo human
+# PACER V0.1: unsafe_abort is not eligible for recovery/full-demo human
 # recording in this pass. The full RTDE stop performed for unsafe_abort can
 # leave the control script inactive, so a follow-up joystick segment cannot
 # be guaranteed safe without a documented revive step (out of scope here).
@@ -134,23 +134,23 @@ CPU_FINISH_COMPONENT = "cpu"
 # collection; correction map drops skills/zones and routes R34 ->
 # finish_recording for human recovery / clean-demo segments.
 DEFAULT_BUTTON_MAP_PATH = "configs/button_mapping.json"
-CORRECTION_BUTTON_MAP_PATH = "configs/button_mapping_tracevla_correction.json"
+CORRECTION_BUTTON_MAP_PATH = "configs/button_mapping_pacer_correction.json"
 
 # V0.7 schema versions stamped into every trial's metadata. Bump when the
 # recording timeline or feedback-label semantics change in a non-backwards-
 # compatible way.
-RECORDING_TIMELINE_VERSION = "tracevla_v07"
-FEEDBACK_SCHEMA_VERSION = "tracevla_v07"
+RECORDING_TIMELINE_VERSION = "pacer_v07"
+FEEDBACK_SCHEMA_VERSION = "pacer_v07"
 # V1.0 corrector_only protocol identifier — single rollout per trial.
 #
-# Replaces the V0.9 ``tracevla_corrector_v09_3_attempts`` semantics. Under
+# Replaces the V0.9 ``pacer_corrector_v09_3_attempts`` semantics. Under
 # the V1.0 protocol the operator runs DIFFERENT TRIALS, not multiple
 # attempts within one trial: each corrector_only trial executes a single
 # model rollout (up to the configured ``--max-steps``, currently 600) and
 # the post-trial reset returns the robot to the per-component temporary
 # ``failure_start`` pose rather than the global configured home. See
 # the internal corrector-only single-trial redesign note.
-CORRECTOR_PROTOCOL_VERSION = "tracevla_corrector_v10_single_trial"
+CORRECTOR_PROTOCOL_VERSION = "pacer_corrector_v10_single_trial"
 CORRECTOR_ROLLOUTS_PER_TRIAL = 1
 # Compatibility aliases for older tests/loaders that still read the historical
 # V0.9 field names. New metadata also exposes rollout-specific names.
@@ -162,7 +162,7 @@ CORRECTOR_MAX_AUTO_ATTEMPTS = CORRECTOR_ROLLOUTS_PER_TRIAL
 TELEOP_GRIPPER_SPEED = 80
 POST_TRIAL_LIFT_Z_M = 0.10
 
-# TRACE-VLA V0.1 (2026-05-20) home-skip tolerances. Anything tighter than the
+# PACER V0.1 (2026-05-20) home-skip tolerances. Anything tighter than the
 # UR5e joint repeatability spec (~0.1 mrad) gives false negatives; loosen
 # only if a wider tolerance is justified by the operator workflow.
 HOME_JOINT_TOL_RAD = 0.02
@@ -175,26 +175,26 @@ HOME_GRIPPER_TOL = 12  # raw 0..255 units
 # while the robot is elsewhere.
 CORRECTOR_START_JOINT_TOL_RAD = 0.05
 
-# TRACE-VLA V0.1 (2026-05-20) corrector_only manual_stop semantics version.
-CORRECTOR_MANUAL_STOP_SCHEMA = "tracevla_corrector_manual_stop.v0.1"
-# TRACE-VLA V1.0 (2026-05-21) borderline classifier for the
+# PACER V0.1 (2026-05-20) corrector_only manual_stop semantics version.
+CORRECTOR_MANUAL_STOP_SCHEMA = "pacer_corrector_manual_stop.v0.1"
+# PACER V1.0 (2026-05-21) borderline classifier for the
 # `model_stop_token + verifier_not_success` case: the model emitted the
 # stop token but the physical verifier did not auto-pass (e.g. ram obs=227).
 # The operator must classify the outcome before any human-correction
 # recording so a model-stop-token win is not silently downgraded to forced
 # human correction.
-CORRECTOR_MODEL_STOP_SCHEMA = "tracevla_corrector_model_stop_borderline.v0.1"
-# TRACE-VLA V1.0 release gate (2026-05-21): after any corrector_success
+CORRECTOR_MODEL_STOP_SCHEMA = "pacer_corrector_model_stop_borderline.v0.1"
+# PACER V1.0 release gate (2026-05-21): after any corrector_success
 # (auto OR operator-confirmed), the operator confirms it is safe to open
 # the gripper before any scripted post-trial motion.  Schema version for
 # the timeline event and metadata field.
-CORRECTOR_RELEASE_GATE_SCHEMA = "tracevla_corrector_release.v0.1"
-# TRACE-VLA corrector gripper verifier family: physical gripper observation is
+CORRECTOR_RELEASE_GATE_SCHEMA = "pacer_corrector_release.v0.1"
+# PACER corrector gripper verifier family: physical gripper observation is
 # authoritative, while cmd/action[6] is telemetry because values near 255 may
 # encode synthesized stop-token intent. Current strict contact thresholds:
 # ram obs<227; connector/cpu_fan/graphic_card obs<220; cpu obs<165.
 CORRECTOR_UNCALIBRATED_COMPONENTS: frozenset[str] = frozenset()
-HUMAN_SEGMENT_DECISIONS_SCHEMA = "tracevla_human_segment_decisions.v0.1"
+HUMAN_SEGMENT_DECISIONS_SCHEMA = "pacer_human_segment_decisions.v0.1"
 
 V07_MANUAL_STOP_FEEDBACK_LABELS = [
     "stop_token_should_emit_here",
@@ -203,12 +203,12 @@ V07_MANUAL_STOP_FEEDBACK_LABELS = [
     "totally_off_wrong_region_or_target",
     "operator_uncertain_exclude",
 ]
-# TRACE-VLA V0.5 (2026-05-21): compact V0.7-only planner_only menu for the
+# PACER V0.5 (2026-05-21): compact V0.7-only planner_only menu for the
 # `model_stop_token` exit. The legacy V0.6 stop-token labels
 # (success_stop_token / near_miss_stop_token / wrong_target /
 # bad_orientation) remain valid in `feedback_compatibility.py` so saved
 # V0.6 trials still load, but they are no longer presented to the live
-# operator. See `the internal TRACE-VLA config_001 issue-A review notes`
+# operator. See `the internal PACER config_001 issue-A review notes`
 # feedback_rtde_investigation_20260521.md` for the operator-confused
 # 9-item menu the user hit on 2026-05-21.
 V07_PLANNER_ONLY_MODEL_STOP_TOKEN_FEEDBACK_LABELS = [
@@ -554,7 +554,7 @@ def _build_query_diag_fn_for_test():
 
 
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="TRACE-VLA TRACE-VLA collection rollout collection")
+    ap = argparse.ArgumentParser(description="PACER PACER collection rollout collection")
     ap.add_argument("--config-id", required=True, help="Configuration number/id, e.g. 1 or config_001")
     ap.add_argument(
         "--phase-block",
@@ -574,7 +574,7 @@ def parse_args() -> argparse.Namespace:
             "Trial sweep order. 'legacy_block_major' (alias 'block_major') is "
             "the pre-V0.1 default; 'component_major_planner_then_corrector' "
             "sweeps planner_only then planner_skill per component, then "
-            "corrector_only across components (TRACE-VLA V0.1, 2026-05-20)."
+            "corrector_only across components (PACER V0.1, 2026-05-20)."
         ),
     )
     ap.add_argument(
@@ -738,7 +738,7 @@ def print_plan(plan: list[TrialSpec], args: argparse.Namespace) -> None:
     for trial in plan:
         counts[trial.block] = counts.get(trial.block, 0) + 1
     print("=" * 72)
-    print("TRACE-VLA TRACE-VLA collection collection plan")
+    print("PACER PACER collection collection plan")
     print(f"config_id: {normalize_config_id(args.config_id)}")
     print(f"components: {args.components}")
     print(f"blocks: {counts}")
@@ -753,7 +753,7 @@ def print_plan(plan: list[TrialSpec], args: argparse.Namespace) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TRACE-VLA V0.9 corrector_only operator UX helpers (2026-05-20).
+# PACER V0.9 corrector_only operator UX helpers (2026-05-20).
 #
 # Extracted as module-level helpers so the rollout banner and the
 # corrector_only per-attempt orchestration are unit-testable via capsys
@@ -845,7 +845,7 @@ def _print_corrector_final(
 
 
 # ---------------------------------------------------------------------------
-# TRACE-VLA V0.1 (2026-05-20) module-level helpers.
+# PACER V0.1 (2026-05-20) module-level helpers.
 #
 # These helpers are module-level so the test suite can exercise the human-
 # segment skip semantics, corrector manual_stop classification menu, and
@@ -865,7 +865,7 @@ def _decide_human_segment(
 ) -> dict[str, Any]:
     """Decide whether to record an optional human segment and return metadata.
 
-    Behavior under TRACE-VLA V0.1 / Fix 1:
+    Behavior under PACER V0.1 / Fix 1:
 
     * ``forced=True`` (V0.7 mandatory-correction gate) → ``[Y/n]`` prompt
       where empty defaults to record; ``n``/``no`` still skips. This is the
@@ -941,7 +941,7 @@ def _classify_corrector_manual_stop(
     calibrated: bool,
     input_fn: Any = None,
 ) -> dict[str, Any]:
-    """TRACE-VLA V1.0 corrector_only manual_stop classification.
+    """PACER V1.0 corrector_only manual_stop classification.
 
     Operator chooses one of:
 
@@ -1084,7 +1084,7 @@ def _classify_corrector_model_stop_borderline(
     verification: GripperVerification,
     input_fn: Any = None,
 ) -> dict[str, Any]:
-    """TRACE-VLA V1.0 corrector_only model_stop_token borderline classifier.
+    """PACER V1.0 corrector_only model_stop_token borderline classifier.
 
     Invoked when ``result.stop_source == "model_stop_token"`` AND the physical
     gripper verifier did NOT auto-pass (``verification.success is not True``).
@@ -1222,7 +1222,7 @@ def _classify_corrector_model_stop_borderline(
 
 
 def _move_home_with_event(collector: Any) -> dict[str, Any] | None:
-    """Move to configured home with TRACE-VLA V0.1 "already-home" skip.
+    """Move to configured home with PACER V0.1 "already-home" skip.
 
     When current joints (best-effort read) are within ``HOME_JOINT_TOL_RAD``
     of ``collector.home_joints`` and the gripper observation is within
@@ -1318,7 +1318,7 @@ class LiveCollector:
             "base": ZMQClientCamera(port=args.base_camera_port, host=args.camera_host, camera_name="base"),
         }
         self.agent = JoystickAgent(button_map_path="configs/button_mapping.json")
-        # Align TRACE-VLA collection manual teleop with run_collection.py: slow Robotiq
+        # Align PACER collection manual teleop with run_collection.py: slow Robotiq
         # finger speed enough for controlled correction demos.
         try:
             self.robot.set_gripper_speed(TELEOP_GRIPPER_SPEED)
@@ -1400,7 +1400,7 @@ class LiveCollector:
             "adapter_init_end_ts": None,
         }
         startup_timing["setup_start_ts"] = time.time()
-        # TRACE-VLA V0.1: capture target_region only at group boundaries; reuse
+        # PACER V0.1: capture target_region only at group boundaries; reuse
         # the planner reference cache for subsequent trials in the same group.
         target_region, planner_reference_binding = self._resolve_planner_only_target_region(trial)
         pre_trial_setup_skip_event = self._move_home()
@@ -1456,7 +1456,7 @@ class LiveCollector:
                 )
             )
             next_segment_id += 1
-        # TRACE-VLA V0.1: the V0.7 mandatory-correction gate has been relaxed
+        # PACER V0.1: the V0.7 mandatory-correction gate has been relaxed
         # to "strongly suggested but skippable". `_decide_human_segment`
         # presents the operator with [Y/n] when correction is required or
         # the legacy mode is `always`, and writes the decision into
@@ -1470,7 +1470,7 @@ class LiveCollector:
             and feedback.label not in RECOVERY_INELIGIBLE_LABELS
             and legacy_correction_mode != "never"
         )
-        # TRACE-VLA V0.1 / Fix 1: even V0.7 mandatory-correction is now
+        # PACER V0.1 / Fix 1: even V0.7 mandatory-correction is now
         # default-yes-but-skippable. The operator sees [Y/n], empty defaults
         # to record, 'n' skips and the skip is recorded in metadata.
         if eligible_for_human_segments:
@@ -1668,7 +1668,7 @@ class LiveCollector:
         2. Run ONE corrector model rollout.
       3. Execute one model rollout. For corrector_only:
          * unsafe_abort -> ``unsafe_abort``.
-         * manual_stop -> show the TRACE-VLA V0.1 classifier menu:
+         * manual_stop -> show the PACER V0.1 classifier menu:
            option 1 -> ``corrector_success``;
            option 2 -> record human correction in the SAME trial ->
            ``human_corrected_then_save``;
@@ -2126,7 +2126,7 @@ class LiveCollector:
             "adapter_init_start_ts": None,
             "adapter_init_end_ts": None,
         }
-        # TRACE-VLA V0.1: planner_skill inherits the target_region from the
+        # PACER V0.1: planner_skill inherits the target_region from the
         # planner_only cache. Fail BEFORE robot motion if no matching capture
         # exists yet — the operator should run planner_only first.
         inherited_target_region, planner_reference_binding = (
@@ -2176,7 +2176,7 @@ class LiveCollector:
         else:
             skill_outcome = f"planner_{result.stop_source}"
         frames = result.frames + skill_frames
-        # TRACE-VLA V0.1: score against inherited reference (was None).
+        # PACER V0.1: score against inherited reference (was None).
         pose_score_obj = score_planner_final_pose(
             final_tcp, inherited_target_region, result.stop_source, result.steps
         )
@@ -2309,7 +2309,7 @@ class LiveCollector:
             and feedback.label not in RECOVERY_INELIGIBLE_LABELS
             and legacy_correction_mode != "never"
         )
-        # TRACE-VLA V0.1 / Fix 1: route planner_skill correction through
+        # PACER V0.1 / Fix 1: route planner_skill correction through
         # `_decide_human_segment`. V0.7 / auto-verification-failure cases
         # are ``forced`` (default-yes-but-skippable [Y/n]); the legacy mode
         # otherwise governs the prompt style.
@@ -2375,7 +2375,7 @@ class LiveCollector:
                 )
                 next_segment_id += 1
                 had_correction = True
-        # TRACE-VLA V0.1 / Fix 1: clean_full_demo also routes through the
+        # PACER V0.1 / Fix 1: clean_full_demo also routes through the
         # skippable decision helper.
         if eligible_for_human_segments and legacy_full_demo_mode != "never":
             ps_demo_forced = correction_required_v07 or auto_skill_verification_failure
@@ -2495,7 +2495,7 @@ class LiveCollector:
             timeline_events[-1]["end_timestamp"] = time.time()
         if ps_post_trial_skip is not None:
             timeline_events.append(ps_post_trial_skip)
-        # TRACE-VLA V0.1: planner_skill writes the inherited target_region as
+        # PACER V0.1: planner_skill writes the inherited target_region as
         # a sidecar so downstream loaders see one consistent shape across
         # planner_only and planner_skill. `TargetRegion.source` is preserved
         # as ``planner_reference_cache`` in the binding metadata above.
@@ -2592,7 +2592,7 @@ class LiveCollector:
 
         The user's validated `scripts/run_planner_skill.py` always moves to the
         configured home pose, settles, then starts OpenPI inference from the
-        trained start distribution. The older TRACE-VLA collection manual setup gate made
+        trained start distribution. The older PACER collection manual setup gate made
         arbitrary pre-start poses the default, which can create a distribution
         mismatch and make planner-skill results incomparable.
         """
@@ -2874,7 +2874,7 @@ class LiveCollector:
         return result, final_tcp
 
     # ------------------------------------------------------------------
-    # TRACE-VLA V0.1 (2026-05-20) reference-cache resolvers
+    # PACER V0.1 (2026-05-20) reference-cache resolvers
     # ------------------------------------------------------------------
 
     def _resolve_config_dir(self, trial: TrialSpec) -> Path | None:
@@ -3001,7 +3001,7 @@ class LiveCollector:
         None) so they continue to exercise the segment-recording logic
         without needing a planner_only cache.
         """
-        from tracevla.collection.reference_cache import MissingPlannerReferenceError
+        from pacer.collection.reference_cache import MissingPlannerReferenceError
 
         cache = self._planner_reference_cache(trial)
         if cache is None:
@@ -3089,7 +3089,7 @@ class LiveCollector:
         self, trial: TrialSpec
     ) -> tuple[TargetPoint, dict[str, Any]]:
         """Capture or reuse the corrector failure_start pose for ``trial``."""
-        from tracevla.collection.reference_cache import decide_corrector_start_action
+        from pacer.collection.reference_cache import decide_corrector_start_action
 
         cache = self._corrector_start_cache(trial)
         if cache is None:
@@ -3413,7 +3413,7 @@ class LiveCollector:
             )
 
     def _move_home(self) -> dict[str, Any] | None:
-        # TRACE-VLA V0.1 (2026-05-20) / Fix 1: return the skip event so that
+        # PACER V0.1 (2026-05-20) / Fix 1: return the skip event so that
         # callers can persist tolerance evidence into ``timeline_events``.
         # Returns ``None`` when the legacy lift + joint-home actually ran.
         return _move_home_with_event(self)
@@ -3708,7 +3708,7 @@ class LiveCollector:
         active control mode there is servoJ, not speedL — see that helper's
         docstring and `_stop_after_model_rollout` for rationale).
 
-        Remaining callers in TRACE-VLA, all of which have a genuine speedL
+        Remaining callers in PACER, all of which have a genuine speedL
         teleop window in flight that needs clearing:
 
           - `_run_planner_skill_auto_home_setup()` — around the pre-inference

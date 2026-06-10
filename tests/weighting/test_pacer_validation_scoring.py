@@ -1,4 +1,4 @@
-from tracevla.weighting.pacer_validation_scoring import (
+from pacer.weighting.pacer_validation_scoring import (
     DEFAULT_SUBMETRIC_WEIGHTS,
     component_balanced_j_val,
     score_validation_row,

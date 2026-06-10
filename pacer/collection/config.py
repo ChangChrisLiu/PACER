@@ -1,4 +1,4 @@
-"""Configuration constants for TRACE-VLA collection rollout collection."""
+"""Configuration constants for PACER collection rollout collection."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -20,7 +20,7 @@ DEFAULT_TRIAL_COUNTS: Final[dict[str, int]] = {
 
 VALID_BLOCKS: Final[set[str]] = set(DEFAULT_TRIAL_COUNTS) | {"all"}
 
-DEFAULT_OUTPUT_ROOT: Final[Path] = Path("data/tracevla_correction_rollouts")
+DEFAULT_OUTPUT_ROOT: Final[Path] = Path("data/pacer_correction_rollouts")
 DEFAULT_FPS: Final[int] = 10
 DEFAULT_MAX_STEPS: Final[int] = 600
 DEFAULT_IMAGE_SIZE: Final[int] = 256
@@ -185,7 +185,7 @@ LABELS_REQUIRING_NOTE: Final[frozenset[str]] = frozenset({
 })
 
 # P0 (pipeline/control diagnostic) labels are not ordinary operator labels.
-# Detection lives in tracevla_auto_score / future Phase-A2 sidecar diagnostics,
+# Detection lives in pacer_auto_score / future Phase-A2 sidecar diagnostics,
 # not in the operator menu. Listed here so tests can assert that none of these
 # tokens accidentally leaks into any operator-facing label set.
 P0_DIAGNOSTIC_LABELS: Final[frozenset[str]] = frozenset({

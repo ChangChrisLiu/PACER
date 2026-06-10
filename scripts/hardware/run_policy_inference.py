@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Single-step TRACE-VLA policy inference smoke runner.
+"""Single-step PACER policy inference smoke runner.
 
 The script is intentionally useful in three modes:
 1. --backend mock: no external dependencies, verifies observation/action JSON.

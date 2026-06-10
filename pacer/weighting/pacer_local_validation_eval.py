@@ -14,7 +14,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Iterable, Mapping
 
-from tracevla.weighting.pacer_eval_contract import (
+from pacer.weighting.pacer_eval_contract import (
     PACER_BO_EVAL_SCHEMA_VERSION,
     compute_recommended_j_b_val,
     validate_pacer_bo_eval_report,
@@ -81,7 +81,7 @@ def build_pacer_scores_from_alignment_eval(
     """Build a contract-valid PACER scores report from offline alignment JSON.
 
     The 8499 alignment file reports joint/action-chunk agreement against initial
-    SFT and TRACE-VLA clean-demo rows. These are not full robot validation metrics,
+    SFT and PACER clean-demo rows. These are not full robot validation metrics,
     so unsupported quantities are filled conservatively from available alignment,
     stop/gripper telemetry, and safety defaults. The report is marked as a local
     smoke via `evaluation_scope`.
@@ -91,7 +91,7 @@ def build_pacer_scores_from_alignment_eval(
         evals = []
 
     all_rows = _rows(evals)
-    clean_rows = _rows(evals, "tracevla_clean_demo") or all_rows
+    clean_rows = _rows(evals, "pacer_clean_demo") or all_rows
     initial_rows = _rows(evals, "original_initial_sft")
 
     clean_chunk_cos = _mean_finite((r.get("chunk_cosine_joint_delta") for r in clean_rows), default=0.0)

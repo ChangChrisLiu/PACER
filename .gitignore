@@ -10,7 +10,7 @@ dist/
 build/
 *.egg-info/
 
-# TRACE-VLA / robot artifacts: keep the repo lightweight and pre-publication safe
+# PACER / robot artifacts: keep the repo lightweight and pre-publication safe
 data/
 outputs/
 runs/

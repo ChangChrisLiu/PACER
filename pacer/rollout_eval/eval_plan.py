@@ -13,8 +13,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from tracevla.collection.config import COMPONENT_SEQUENCE
-from tracevla.collection.trial_plan import normalize_config_id
+from pacer.collection.config import COMPONENT_SEQUENCE
+from pacer.collection.trial_plan import normalize_config_id
 
 
 DEFAULT_TRIALS_PER_COMPONENT = 10
@@ -200,7 +200,7 @@ class EvalProgressTracker:
     """Persistent progress tracker for rollout-eval.
 
     A trial is `is_completed` iff its `eval_trial_id` is in `completed` OR
-    `failed`. Failed trials are not retried automatically (mirrors TRACE-VLA collection
+    `failed`. Failed trials are not retried automatically (mirrors PACER collection
     semantics: failures are recorded and the operator moves on, so the same
     trial does not run twice). `--restart` deletes the progress file
     explicitly and is destructive.

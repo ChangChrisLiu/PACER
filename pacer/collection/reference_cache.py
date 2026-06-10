@@ -1,4 +1,4 @@
-"""TRACE-VLA V0.1 (2026-05-20) reference caches.
+"""PACER V0.1 (2026-05-20) reference caches.
 
 Two caches live under `<output_root>/<config_id>/`:
 
@@ -11,7 +11,7 @@ Two caches live under `<output_root>/<config_id>/`:
 
 Both caches are JSON files persisted with the atomic-write pattern from
 ``trial_plan.atomic_write_json``. Schemas match the agreed-upon implementation
-designs from internal TRACE-VLA protocol reviews.
+designs from internal PACER protocol reviews.
 
 Target-group schedule resolvers (``resolve_target_group``,
 ``resolve_planner_skill_target_group``) are pure functions so the planner
@@ -29,9 +29,9 @@ from typing import Callable, Iterable
 from .config import COMPONENT_SEQUENCE
 from .schemas import TargetPoint, TargetRegion, default_position_tolerance_m
 
-PLANNER_REFERENCE_CACHE_SCHEMA = "tracevla_planner_reference_cache.v0.1"
-PLANNER_REFERENCE_BINDING_SCHEMA = "tracevla_planner_reference_binding.v0.1"
-CORRECTOR_START_POSE_CACHE_SCHEMA = "tracevla_corrector_start_pose_cache.v0.1"
+PLANNER_REFERENCE_CACHE_SCHEMA = "pacer_planner_reference_cache.v0.1"
+PLANNER_REFERENCE_BINDING_SCHEMA = "pacer_planner_reference_binding.v0.1"
+CORRECTOR_START_POSE_CACHE_SCHEMA = "pacer_corrector_start_pose_cache.v0.1"
 
 PLANNER_REFERENCE_CACHE_FILENAME = "planner_reference_cache.json"
 CORRECTOR_START_POSE_CACHE_FILENAME = "corrector_start_pose_cache.json"
@@ -104,7 +104,7 @@ def resolve_planner_skill_target_group(
 ) -> str:
     """Map a planner_skill trial index to the inherited target_group_id.
 
-    `representative_groups` (TRACE-VLA V0.1 default): map planner_skill trial
+    `representative_groups` (PACER V0.1 default): map planner_skill trial
     index `i` to group `i mod num_groups`. With `--planner-skill-count 2`
     this gives connector groups 0 and 1 (representative, intentionally
     incomplete — caller should annotate the metadata).
@@ -130,7 +130,7 @@ def build_planner_skill_coverage_metadata(
 ) -> dict:
     """Build the per-trial coverage annotation for planner_skill.
 
-    TRACE-VLA V0.1 Fix 1: planner_skill metadata must record the policy used
+    PACER V0.1 Fix 1: planner_skill metadata must record the policy used
     and whether the chosen ``planner_skill_count`` actually covers every
     target group for the component. For connector with count=2 over 4 groups,
     ``full_target_group_coverage`` is False — downstream consumers can treat
@@ -189,7 +189,7 @@ class PlannerReferenceCache:
     .. code-block:: json
 
         {
-          "schema_version": "tracevla_planner_reference_cache.v0.1",
+          "schema_version": "pacer_planner_reference_cache.v0.1",
           "config_id": "config_001",
           "updated_at": 1715000000.0,
           "components": {

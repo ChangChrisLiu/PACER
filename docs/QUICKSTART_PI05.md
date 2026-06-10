@@ -1,6 +1,6 @@
-# Pi0.5-style quickstart: model -> rollout -> correction -> TRACE-VLA
+# Pi0.5-style quickstart: model -> rollout -> correction -> PACER
 
-TRACE-VLA starts after you already have a base robot policy, for example a Pi0.5/OpenPI checkpoint. This repository does not include the initial data-collection/SFT pipeline.
+PACER starts after you already have a base robot policy, for example a Pi0.5/OpenPI checkpoint. This repository does not include the initial data-collection/SFT pipeline.
 
 The commands below are intentionally explicit and use the actual integration-script flags. `configs/pi05_rollout_then_correction.example.yaml` is a planning template, not a consumed CLI config.
 
@@ -9,10 +9,10 @@ The commands below are intentionally explicit and use the actual integration-scr
 ```text
 base_policy: existing Pi0.5/OpenPI checkpoint or LoRA-merged checkpoint
 norm_stats: method/checkpoint-family-specific norm_stats available
-runtime: TRACE-VLA robot/camera/OpenPI adapters available when doing live hardware runs
+runtime: PACER robot/camera/OpenPI adapters available when doing live hardware runs
 ```
 
-Install the lightweight TRACE-VLA package for offline code/tests:
+Install the lightweight PACER package for offline code/tests:
 
 ```bash
 pip install -e '.[test]'
@@ -63,18 +63,18 @@ Contract reminders:
 - Model stop-token events should be classified by the operator when borderline.
 - Human-corrected saves should not be silently converted into scripted success.
 
-## 3. Compile TRACE-VLA chunks
+## 3. Compile PACER chunks
 
-Use `tracevla.weighting.action_chunk_compiler` on rollout/correction manifests to produce action chunks and process evidence.
+Use `pacer.weighting.action_chunk_compiler` on rollout/correction manifests to produce action chunks and process evidence.
 
-## 4. Materialize TRACE-VLA weights
+## 4. Materialize PACER weights
 
-Use `tracevla.weighting.pacer_bo_weights` to map eta settings to clipped, stratum-normalized `returns.loss_weight` values.
+Use `pacer.weighting.pacer_bo_weights` to map eta settings to clipped, stratum-normalized `returns.loss_weight` values.
 
 ## 5. Fine-tune and evaluate
 
-Fine-tune candidate weighted views in your training stack. Evaluate each candidate with fixed method-specific norm stats at serving time. Write each validation result as a `scores.json` compatible with `tracevla.weighting.pacer_eval_contract`.
+Fine-tune candidate weighted views in your training stack. Evaluate each candidate with fixed method-specific norm stats at serving time. Write each validation result as a `scores.json` compatible with `pacer.weighting.pacer_eval_contract`.
 
 ## 6. Propose the next eta
 
-Use `tracevla.weighting.pacer_bo` with validation scores only. Do not use heldout/final-test scores for BO selection.
+Use `pacer.weighting.pacer_bo` with validation scores only. Do not use heldout/final-test scores for BO selection.

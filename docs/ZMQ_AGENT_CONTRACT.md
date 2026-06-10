@@ -1,6 +1,6 @@
 # ZMQ agent contract
 
-This document defines the small JSON contract used by TRACE-VLA hardware probes
+This document defines the small JSON contract used by PACER hardware probes
 and by local robot/camera bridge adapters. It is deliberately minimal so labs can
 wrap existing bridges without changing the core rollout/correction code.
 
@@ -16,7 +16,7 @@ wrap existing bridges without changing the core rollout/correction code.
 ```json
 {
   "type": "ping",
-  "client": "tracevla",
+  "client": "pacer",
   "request_id": "optional-uuid"
 }
 ```
@@ -75,7 +75,7 @@ local bridge separately; this contract only requires metadata and small arrays.
 {"type": "get_observation", "include_images": false}
 ```
 
-Expected semantic keys for TRACE-VLA adapters:
+Expected semantic keys for PACER adapters:
 
 - `joint_positions`: six arm joints plus optional gripper.
 - `gripper_position`: normalized or raw, with convention documented.
@@ -85,7 +85,7 @@ Expected semantic keys for TRACE-VLA adapters:
 ### move_joint / move_tcp / set_gripper
 
 Live motion commands. These should be guarded by the local bridge as well as by
-TRACE-VLA's caller-side confirmation gate. Probes in this repo do not issue them
+PACER's caller-side confirmation gate. Probes in this repo do not issue them
 unless you explicitly pass a custom JSON file.
 
 ## Safety rules

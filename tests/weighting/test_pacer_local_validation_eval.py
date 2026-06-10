@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from tracevla.weighting.pacer_eval_contract import validate_pacer_bo_eval_report
-from tracevla.weighting.pacer_local_validation_eval import (
+from pacer.weighting.pacer_eval_contract import validate_pacer_bo_eval_report
+from pacer.weighting.pacer_local_validation_eval import (
     build_pacer_scores_from_alignment_eval,
     write_pacer_scores_json,
 )
@@ -13,7 +13,7 @@ from tracevla.weighting.pacer_local_validation_eval import (
 def _alignment_payload():
     return {
         "checkpoint": "/tmp/8499",
-        "config": "pi05_droid_ur5e_tracevla_rwfma_lora_10hz",
+        "config": "pi05_droid_ur5e_pacer_rwfma_lora_10hz",
         "evals": [
             {
                 "mode": "original_initial_sft",
@@ -27,7 +27,7 @@ def _alignment_payload():
                 ],
             },
             {
-                "mode": "tracevla_clean_demo",
+                "mode": "pacer_clean_demo",
                 "n_evaluated": 2,
                 "mean_chunk_cosine_joint_delta": 0.80,
                 "median_chunk_cosine_joint_delta": 0.80,
@@ -49,7 +49,7 @@ def test_alignment_eval_converts_to_contract_valid_pacer_scores():
         training_run_id="fixed_rw_fma_8499_local_validation_smoke",
     )
 
-    assert report["schema"] == "tracevla_bo_eval_scores.v0.1"
+    assert report["schema"] == "pacer_bo_eval_scores.v0.1"
     assert report["split"] == "val"
     assert report["candidate"]["checkpoint_ref"] == "/tmp/8499"
     assert report["scores"]["action_vector_direction_cosine"] == 0.8

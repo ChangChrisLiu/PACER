@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# TRACE-VLA pre-publication integration script.
+# PACER pre-publication integration script.
 # This script is copied from the external robot runtime and expects the robot/camera/OpenPI
-# adapters from TRACE-VLA to be importable. It is intentionally included as an integration
+# adapters from PACER to be importable. It is intentionally included as an integration
 # reference, not as a standalone hardware driver.
 
-"""TRACE-VLA rollout-only model evaluation entrypoint (T4).
+"""PACER rollout-only model evaluation entrypoint (T4).
 
 Pairs with three operator-managed terminals:
     T1: launch_robot.py
@@ -18,7 +18,7 @@ each rollout with a 5-item label menu; strict_success is derived as
 `label == "success" AND stop_source != "unsafe_abort"`.
 
 Dry-run (`--dry-run`) does NOT initialize hardware/model clients. Live runs
-require `--confirm-hardware` (mirrors the TRACE-VLA collection collection gate).
+require `--confirm-hardware` (mirrors the PACER collection collection gate).
 """
 from __future__ import annotations
 
@@ -33,8 +33,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from tracevla.collection.config import COMPONENT_SEQUENCE, DEFAULT_FPS, DEFAULT_IMAGE_SIZE, DEFAULT_MAX_STEPS
-from tracevla.rollout_eval.eval_plan import (
+from pacer.collection.config import COMPONENT_SEQUENCE, DEFAULT_FPS, DEFAULT_IMAGE_SIZE, DEFAULT_MAX_STEPS
+from pacer.rollout_eval.eval_plan import (
     DEFAULT_CONFIGS,
     DEFAULT_TRIALS_PER_COMPONENT,
     EvalProgressTracker,
@@ -43,15 +43,15 @@ from tracevla.rollout_eval.eval_plan import (
     load_model_registry,
     plan_summary,
 )
-from tracevla.rollout_eval.eval_writer import RolloutEvalWriter
+from pacer.rollout_eval.eval_writer import RolloutEvalWriter
 
 
-DEFAULT_OUTPUT_ROOT = "data/tracevla_rollout_eval"
+DEFAULT_OUTPUT_ROOT = "data/pacer_rollout_eval"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(
-        description="TRACE-VLA TRACE-VLA rollout-only model evaluation"
+        description="PACER PACER rollout-only model evaluation"
     )
     ap.add_argument(
         "--run-id",
@@ -116,7 +116,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument(
         "--output-root",
         default=DEFAULT_OUTPUT_ROOT,
-        help="Root directory for run_<run_id>/. Default data/tracevla_rollout_eval.",
+        help="Root directory for run_<run_id>/. Default data/pacer_rollout_eval.",
     )
 
     # Robot / camera / inference args (same names/defaults as collection).
@@ -214,7 +214,7 @@ def _build_session_meta(
     models: list[ModelSpec],
 ) -> dict[str, Any]:
     return {
-        "schema_version": "tracevla_rollout_eval.v0.1",
+        "schema_version": "pacer_rollout_eval.v0.1",
         "run_id": args.run_id,
         "operator": args.operator,
         "components": [c.strip() for c in args.components.split(",") if c.strip()],
@@ -252,7 +252,7 @@ def _build_session_meta(
 
 def print_plan(plan: list, args: argparse.Namespace) -> None:
     print("=" * 72)
-    print("TRACE-VLA TRACE-VLA rollout-only model evaluation")
+    print("PACER PACER rollout-only model evaluation")
     print(f"run_id: {args.run_id}")
     print(f"components: {args.components}")
     print(f"configs: {args.configs}")
@@ -324,7 +324,7 @@ def main(argv: list[str] | None = None) -> None:
     from src.agents.vla_agent import VLAAgent  # noqa: E402
     from src.comms.camera_node import ZMQClientCamera  # noqa: E402
     from src.comms.robot_node import ZMQClientRobot  # noqa: E402
-    from tracevla.rollout_eval.eval_runner import (  # noqa: E402
+    from pacer.rollout_eval.eval_runner import (  # noqa: E402
         HardwareHandles,
         RolloutEvalConfig,
         RolloutEvalRunner,
@@ -337,7 +337,7 @@ def main(argv: list[str] | None = None) -> None:
     # module-level helpers _move_home_with_event and the per-stop primitives
     # off a thin shim object that exposes the minimal attributes those
     # helpers read (robot, obs_client, args, home_joints, home_gripper).
-    import scripts.run_tracevla_pre_collection as collection  # noqa: E402
+    import scripts.run_pacer_pre_collection as collection  # noqa: E402
 
     robot = ZMQClientRobot(port=args.robot_port, host=args.robot_host)
     obs_client = ZMQClientRobot(port=args.obs_port, host=args.robot_host)

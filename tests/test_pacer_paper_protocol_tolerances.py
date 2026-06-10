@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from tracevla.collection.reference_cache import PlannerReferenceCache
-from tracevla.collection.schemas import TargetPoint, TargetRegion
-from tracevla.weighting.action_chunk_compiler import _pose_error_to_region
+from pacer.collection.reference_cache import PlannerReferenceCache
+from pacer.collection.schemas import TargetPoint, TargetRegion
+from pacer.weighting.action_chunk_compiler import _pose_error_to_region
 
 
 def _target_point():

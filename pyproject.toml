@@ -3,9 +3,9 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tracevla-robotics"
+name = "pacer-robotics"
 version = "0.1.0"
-description = "TRACE-VLA: trace-based rollout correction and process-aware weighting for VLA policy improvement"
+description = "PACER: process-aware correction and evidence reweighting for VLA policy improvement"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Chris Liu"}]
@@ -20,7 +20,7 @@ test = ["pytest>=7"]
 robot = ["opencv-python", "pyzmq"]
 
 [tool.setuptools.packages.find]
-include = ["tracevla*"]
+include = ["pacer*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

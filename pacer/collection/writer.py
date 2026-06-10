@@ -1,4 +1,4 @@
-"""Writers for TRACE-VLA collection sidecars and manifests."""
+"""Writers for PACER collection sidecars and manifests."""
 from __future__ import annotations
 
 import json
@@ -71,7 +71,7 @@ def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
 
 
 class CorrectionCollectionWriter:
-    """Save TRACE-VLA collection trials in config/block/component/trial layout."""
+    """Save PACER collection trials in config/block/component/trial layout."""
 
     def __init__(self, output_root: str | Path):
         self.output_root = Path(output_root)
@@ -127,9 +127,9 @@ class CorrectionCollectionWriter:
         if target_region is not None:
             write_json(episode_dir / "target_region.json", target_region.to_dict())
         if feedback is not None:
-            write_json(episode_dir / "tracevla_trial_feedback.json", feedback.to_dict())
+            write_json(episode_dir / "pacer_trial_feedback.json", feedback.to_dict())
         if score is not None:
-            write_json(episode_dir / "tracevla_auto_score.json", score if isinstance(score, dict) else score.to_dict())
+            write_json(episode_dir / "pacer_auto_score.json", score if isinstance(score, dict) else score.to_dict())
         if action_trace is not None:
             trace_path = episode_dir / "vla_action_trace.jsonl"
             if trace_path.exists():
@@ -137,7 +137,7 @@ class CorrectionCollectionWriter:
             for row in action_trace:
                 append_jsonl(trace_path, row)
         append_jsonl(
-            self.config_root(trial.config_id) / "tracevla_pre_manifest.jsonl",
+            self.config_root(trial.config_id) / "pacer_pre_manifest.jsonl",
             {
                 **trial.to_dict(),
                 "episode_dir": str(episode_dir),

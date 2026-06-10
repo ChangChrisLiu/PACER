@@ -1,15 +1,15 @@
 # Pre-publication scope
 
-This `TRACE-VLA` package is a GitHub pre-publication extraction from TRACE-VLA. It is not the full TRACE-VLA repository and is not yet a public release.
+This `PACER` package is a GitHub pre-publication extraction from PACER. It is not the full PACER repository and is not yet a public release.
 
 Included:
 
-- TRACE-VLA process-aware chunk compilation.
+- PACER process-aware chunk compilation.
 - Eta-weighted `returns.loss_weight` materialization logic.
 - Eval-report schema and validation contract.
 - Bayesian-optimization proposal logic over eta candidates.
 - Rollout/correction/demo schemas and writer/evaluation helpers.
-- TRACE-VLA hardware integration scripts as reference adapters.
+- PACER hardware integration scripts as reference adapters.
 
 Excluded on purpose:
 
@@ -19,4 +19,4 @@ Excluded on purpose:
 
 Starting assumption:
 
-- You already have a base policy checkpoint, e.g. Pi0.5/OpenPI, plus the runtime needed to serve it. TRACE-VLA begins at rollout, correction evidence collection, and post-rollout weighted improvement.
+- You already have a base policy checkpoint, e.g. Pi0.5/OpenPI, plus the runtime needed to serve it. PACER begins at rollout, correction evidence collection, and post-rollout weighted improvement.

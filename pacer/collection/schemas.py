@@ -1,4 +1,4 @@
-"""Typed schemas for TRACE-VLA collection rollout collection sidecars."""
+"""Typed schemas for PACER collection rollout collection sidecars."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field

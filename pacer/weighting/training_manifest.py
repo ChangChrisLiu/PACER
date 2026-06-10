@@ -1,7 +1,7 @@
 """PACER/SFT++ training-run manifest utilities.
 
 This module is offline-only. It records how to combine original SFT checkpoints
-with TRACE-VLA weighted views without launching training or touching hardware.
+with PACER weighted views without launching training or touching hardware.
 """
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-PACER_TRAINING_RUN_MANIFEST_SCHEMA = "tracevla_training_run_manifest.v0.1"
+PACER_TRAINING_RUN_MANIFEST_SCHEMA = "pacer_training_run_manifest.v0.1"
 DEFAULT_ABLATION_METHODS = (
     "clean_demo_only",
     "uniform_replay",
@@ -17,14 +17,14 @@ DEFAULT_ABLATION_METHODS = (
     "outcome_only",
     "fixed_rw_fma",
     "random_weight",
-    "tracevla_eta_rw_like",
-    "tracevla_eta_progress_heavy",
-    "tracevla_eta_hover_proximity_heavy",
-    "tracevla_eta_terminal_stop_heavy",
-    "tracevla_eta_correction_heavy",
-    "tracevla_eta_conservative",
-    "tracevla_eta_ram_connector_recovery",
-    "tracevla_eta_balanced_low_clip",
+    "pacer_eta_rw_like",
+    "pacer_eta_progress_heavy",
+    "pacer_eta_hover_proximity_heavy",
+    "pacer_eta_terminal_stop_heavy",
+    "pacer_eta_correction_heavy",
+    "pacer_eta_conservative",
+    "pacer_eta_ram_connector_recovery",
+    "pacer_eta_balanced_low_clip",
 )
 
 
@@ -42,7 +42,7 @@ def _slurm_text(
     http_proxy: str = "",
     https_proxy: str = "",
 ) -> str:
-    repo_id = f"ChangChrisLiu/ur5e_tracevla_{method}_10hz"
+    repo_id = f"ChangChrisLiu/ur5e_pacer_{method}_10hz"
     return f"""#!/usr/bin/env bash
 #SBATCH --job-name=pacer_{method}
 #SBATCH --time=36:00:00
@@ -85,7 +85,7 @@ echo "Dataset verified: $DATASET_DIR"
 
 # ── Stage 1.5: Verify norm_stats exists ──
 echo ">>> Stage 1.5: Verify norm_stats for {method}"
-NORM_FILE="$OPENPI_ROOT/assets/pi05_droid_ur5e_tracevla_rwfma_lora_10hz/$REPO_ID/norm_stats.json"
+NORM_FILE="$OPENPI_ROOT/assets/pi05_droid_ur5e_pacer_rwfma_lora_10hz/$REPO_ID/norm_stats.json"
 if [ ! -f "$NORM_FILE" ]; then
   echo "ERROR: norm_stats not found at $NORM_FILE"
   exit 1
@@ -95,9 +95,9 @@ echo "norm_stats verified: $NORM_FILE"
 # ── Stage 2: Train LoRA via OpenPI ──
 echo ">>> Stage 2: Train LoRA for {method} ({steps} steps)"
 cd "$OPENPI_ROOT"
-uv run python scripts/train.py pi05_droid_ur5e_tracevla_rwfma_lora_10hz \\
+uv run python scripts/train.py pi05_droid_ur5e_pacer_rwfma_lora_10hz \\
   --data.repo-id "$REPO_ID" \\
-  --exp-name "tracevla_{method}_${{SLURM_JOB_ID:-local}}" \\
+  --exp-name "pacer_{method}_${{SLURM_JOB_ID:-local}}" \\
   --checkpoint-base-dir "$RUN_DIR/openpi_lora_output" \\
   --num-train-steps {steps} \\
   --batch-size 32 \\
@@ -131,7 +131,7 @@ def build_pacer_training_run_plan(
     output_root: str | Path,
     methods: Iterable[str] = DEFAULT_ABLATION_METHODS,
     hprc_openpi_root: str = "/scratch/$USER/openpi",
-    hprc_robot_runtime_root: str = "/scratch/$USER/TRACE-VLA",
+    hprc_robot_runtime_root: str = "/scratch/$USER/PACER",
     steps: int = 8500,
 ) -> dict[str, Any]:
     """Build a reviewer-safe local/HPRC training plan without launching jobs."""
@@ -158,7 +158,7 @@ def build_pacer_training_run_plan(
         "local_run_dir": str(sftpp_dir),
         "hprc_slurm_path": str(sftpp_dir / "train_job.slurm"),
         "validation_scores_path": str(sftpp_dir / "validation" / "scores.json"),
-        "eval_schema": "tracevla_bo_eval_scores.v0.1",
+        "eval_schema": "pacer_bo_eval_scores.v0.1",
         "steps": int(steps),
     }
 
@@ -172,14 +172,14 @@ def build_pacer_training_run_plan(
                 "base_checkpoint_type": "merged_original_sft",
                 "base_checkpoint_path": str(Path(merged_original_sft_checkpoint)),
                 "weighted_view_path": str(weighted_views_root / method / "action_chunks.jsonl"),
-                "weight_manifest": str(weighted_views_root / method / "tracevla_weight_manifest.json"),
+                "weight_manifest": str(weighted_views_root / method / "pacer_weight_manifest.json"),
                 "loss_weight_field": "returns.loss_weight",
                 "trainable_adapter": "new_lora",
                 "local_run_dir": str(run_dir),
                 "new_lora_output_dir": str(run_dir / "openpi_lora_output"),
                 "hprc_slurm_path": str(run_dir / "train_job.slurm"),
                 "validation_scores_path": str(run_dir / "validation" / "scores.json"),
-                "eval_schema": "tracevla_bo_eval_scores.v0.1",
+                "eval_schema": "pacer_bo_eval_scores.v0.1",
                 "steps": int(steps),
             }
         )
@@ -188,7 +188,7 @@ def build_pacer_training_run_plan(
         "schema": PACER_TRAINING_RUN_MANIFEST_SCHEMA,
         "protocol": "same_base_sftpp_demo_plus_merged_sft_ablation_loras",
         "notes": [
-            "Main-table SFT++ starts from the same merged original SFT checkpoint as the weighting ablations and adds TRACE-VLA clean/correction demonstrations.",
+            "Main-table SFT++ starts from the same merged original SFT checkpoint as the weighting ablations and adds PACER clean/correction demonstrations.",
             "Ablation runs also start from the same merged original SFT checkpoint and train a fresh LoRA per method.",
             "Any unmerged-original SFT++ run is legacy/diagnostic only, not a strict main-table ablation.",
             "RW-FMA 8499 observed weak stop-token emission and angled approach; eval must include stop/approach scores.",
@@ -244,7 +244,7 @@ def validate_training_run_plan(plan: Mapping[str, Any]) -> list[str]:
                 except Exception:
                     errors.append(f"bad_weight_manifest_json:{method}")
                 else:
-                    expected_mode = "tracevla_eta" if method.startswith("tracevla_eta_") else method
+                    expected_mode = "pacer_eta" if method.startswith("pacer_eta_") else method
                     if manifest.get("ablation_mode") != expected_mode:
                         errors.append(f"weight_manifest_mode_mismatch:{method}")
                     if manifest.get("weight_field") != "returns.loss_weight":
@@ -263,7 +263,7 @@ def materialize_training_run_plan(plan: Mapping[str, Any], output_root: str | Pa
     output_root = Path(output_root)
     output_root.mkdir(parents=True, exist_ok=True)
     hprc = plan.get("hprc", {}) if isinstance(plan.get("hprc"), Mapping) else {}
-    sea_root = str(hprc.get("robot_runtime_root", "/scratch/$USER/TRACE-VLA"))
+    sea_root = str(hprc.get("robot_runtime_root", "/scratch/$USER/PACER"))
     openpi_root = str(hprc.get("openpi_root", "/scratch/$USER/openpi"))
 
     def write_run(run: Mapping[str, Any]) -> dict[str, str]:

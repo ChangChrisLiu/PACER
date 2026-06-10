@@ -1,4 +1,4 @@
-"""Trial-plan generation and progress tracking for TRACE-VLA collection collection."""
+"""Trial-plan generation and progress tracking for PACER collection collection."""
 from __future__ import annotations
 
 import json
@@ -12,7 +12,7 @@ from .schemas import BlockName, TrialSpec
 
 BLOCK_ORDER: tuple[BlockName, ...] = ("planner_skill", "planner_only", "corrector_only")
 
-# TRACE-VLA V0.1 (2026-05-20) collection-order modes.
+# PACER V0.1 (2026-05-20) collection-order modes.
 LEGACY_BLOCK_MAJOR = "legacy_block_major"
 COMPONENT_MAJOR_PLANNER_THEN_CORRECTOR = "component_major_planner_then_corrector"
 # Fix 1 (2026-05-20): accept ``block_major`` as a short alias for the legacy
@@ -93,7 +93,7 @@ def build_trial_plan(
     counts: dict[str, int] | None = None,
     collection_order: str = DEFAULT_COLLECTION_ORDER,
 ) -> list[TrialSpec]:
-    """Build the deterministic TRACE-VLA collection trial plan.
+    """Build the deterministic PACER collection trial plan.
 
     Two collection orders are supported:
 
@@ -103,7 +103,7 @@ def build_trial_plan(
       `COMPONENT_SEQUENCE`. This preserves the pre-V0.1 trial-index sequence
       that `progress.json` files on disk depend on.
 
-    * `component_major_planner_then_corrector` (TRACE-VLA V0.1, 2026-05-20):
+    * `component_major_planner_then_corrector` (PACER V0.1, 2026-05-20):
       for each component, collect planner_only then planner_skill; once every
       component has finished planner-side trials, sweep corrector_only across
       components. This matches the package's default operator sequence

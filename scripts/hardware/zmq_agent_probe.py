@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Probe a TRACE-VLA-compatible ZMQ JSON REQ/REP agent."""
+"""Probe a PACER-compatible ZMQ JSON REQ/REP agent."""
 from __future__ import annotations
 
 import argparse
@@ -13,7 +13,7 @@ from pathlib import Path
 def _request_from_args(args: argparse.Namespace) -> dict:
     if args.json_file:
         return json.loads(args.json_file.read_text())
-    return {"type": args.request, "client": "tracevla", "request_id": str(uuid.uuid4())}
+    return {"type": args.request, "client": "pacer", "request_id": str(uuid.uuid4())}
 
 
 def main(argv: list[str] | None = None) -> int:

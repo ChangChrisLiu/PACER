@@ -103,7 +103,7 @@ Teleop is used for three things:
 The SEA-VLA reference teleop wrapper is:
 
 ```text
-PACER/tracevla/collection/teleop_capture.py
+PACER/pacer/collection/teleop_capture.py
 ```
 
 It wraps the runtime `JoystickAgent` and `ZMQClientRobot`:
@@ -161,7 +161,7 @@ python3 scripts/robot_runtime/run_correction_collection.py \
   --config-id config_001 \
   --phase-block planner_side \
   --components ram,connector,cpu_fan,graphic_card,cpu \
-  --output-root data/tracevla_correction_rollouts \
+  --output-root data/pacer_correction_rollouts \
   --robot-host 127.0.0.1 --robot-port 6000 --obs-port 6002 \
   --camera-host 127.0.0.1 --wrist-camera-port 5000 --base-camera-port 5001 \
   --server-host 127.0.0.1 \
@@ -186,14 +186,14 @@ The collection writer saves one directory per trial:
   ...
   episode_meta.json
   target_region.json                 # when target capture exists
-  tracevla_trial_feedback.json       # operator label
-  tracevla_auto_score.json           # automatic geometric/physical score
+  pacer_trial_feedback.json       # operator label
+  pacer_auto_score.json           # automatic geometric/physical score
   vla_action_trace.jsonl             # policy queries + executed actions
 
 <output_root>/<config_id>/
   session_meta.json
   progress.json
-  tracevla_pre_manifest.jsonl
+  pacer_pre_manifest.jsonl
 ```
 
 Important saved signals:
@@ -307,7 +307,7 @@ python3 scripts/hardware/run_policy_inference.py \
 Inside full collection/eval, inference is handled by:
 
 ```text
-PACER/tracevla/collection/inference_runner.py::TracedChunkRunner
+PACER/pacer/collection/inference_runner.py::TracedChunkRunner
 ```
 
 It runs at 10 Hz by default:

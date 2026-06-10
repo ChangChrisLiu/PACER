@@ -1,5 +1,5 @@
 # Example only. Replace all paths/endpoints with your local runtime.
-project: tracevla-prepublication
+project: pacer-prepublication
 base_model:
   family: pi0.5
   model_id: pi05_base_example
@@ -18,7 +18,7 @@ correction_collection:
   output_root: outputs/correction/pi05_base_example
   phase: corrector_only
   one_long_rollout_per_saved_trial: true
-tracevla:
-  weighted_view_root: outputs/tracevla_weighted_views
+pacer:
+  weighted_view_root: outputs/pacer_weighted_views
   eta_pool: examples/eta_candidates.json
   validation_scores_root: outputs/validation_scores

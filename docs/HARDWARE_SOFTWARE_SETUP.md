@@ -1,18 +1,18 @@
-# TRACE-VLA hardware and software setup
+# PACER hardware and software setup
 
-This is the complete bring-up checklist for running TRACE-VLA from an existing
+This is the complete bring-up checklist for running PACER from an existing
 VLA checkpoint. It is intentionally written with placeholders instead of lab
 addresses or secrets; copy the example config and fill those values locally.
 
 ## 0. Scope
 
-TRACE-VLA starts after a base policy already exists. A full live run needs four
+PACER starts after a base policy already exists. A full live run needs four
 pieces running at the same time:
 
 1. Robot command/telemetry stack: UR/RTDE or equivalent robot bridge.
 2. Camera/observation stack: base camera, wrist camera, robot state, gripper.
 3. Policy server: Pi0.5/OpenPI or another VLA backend that returns action chunks.
-4. TRACE-VLA runner: rollout evaluation or correction/demo collection scripts.
+4. PACER runner: rollout evaluation or correction/demo collection scripts.
 
 The repository includes offline tests and dry-runs, but it does not ship robot
 firmware, vendor drivers, private checkpoints, raw videos, or norm-stat files.
@@ -40,7 +40,7 @@ Robot-side/vendor dependencies usually live outside this repo:
 
 Do not commit local IPs, checkpoint paths, tokens, `.env` files, raw data, or
 videos. Put local values in an untracked config copied from
-`configs/tracevla_hardware.example.yaml`.
+`configs/pacer_hardware.example.yaml`.
 
 ## 2. Network and process topology
 
@@ -50,7 +50,7 @@ A common lab layout is:
 policy host        : serves VLA action chunks over websocket/REST
 robot bridge host  : receives command messages and publishes telemetry
 camera host        : publishes RGB/depth or serves observations
-operator terminal  : runs TRACE-VLA collection/evaluation
+operator terminal  : runs PACER collection/evaluation
 ```
 
 Default placeholders in the example config:
@@ -99,7 +99,7 @@ policy server is reachable.
 
 ## 4. Start and probe ZMQ robot/camera agents
 
-TRACE-VLA treats ZMQ services as JSON REQ/REP endpoints for probing and as a
+PACER treats ZMQ services as JSON REQ/REP endpoints for probing and as a
 reference contract for local bridges. The minimal messages are documented in
 `docs/ZMQ_AGENT_CONTRACT.md`.
 
@@ -110,10 +110,10 @@ python scripts/hardware/zmq_agent_probe.py --endpoint tcp://ROBOT_IP_OR_HOSTNAME
 python scripts/hardware/zmq_agent_probe.py --endpoint tcp://ROBOT_IP_OR_HOSTNAME:5555 --request status
 ```
 
-If the bridge uses a different schema, keep an adapter in the local TRACE-VLA
-runtime. Do not weaken safety gates in TRACE-VLA just to match a bridge.
+If the bridge uses a different schema, keep an adapter in the local PACER
+runtime. Do not weaken safety gates in PACER just to match a bridge.
 
-## 5. Dry-run TRACE-VLA scripts
+## 5. Dry-run PACER scripts
 
 Rollout evaluation plan inspection:
 
@@ -161,7 +161,7 @@ re-probing robot state, camera stream, and policy response.
 Terminal A: robot bridge / vendor driver.
 Terminal B: camera or observation server.
 Terminal C: VLA policy server.
-Terminal D: TRACE-VLA dry-run, then live runner with explicit confirmation.
+Terminal D: PACER dry-run, then live runner with explicit confirmation.
 
 Record every live run under an untracked output directory. Only synthetic small
 examples and source code belong in git.

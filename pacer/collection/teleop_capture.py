@@ -1,4 +1,4 @@
-"""Teleoperation capture helpers for TRACE-VLA collection.
+"""Teleoperation capture helpers for PACER collection.
 
 The hardware-facing class is intentionally small: it reuses JoystickAgent
 without changing button_mapping.json. Unit tests cover the pure conversion
@@ -57,7 +57,7 @@ def snapshot_from_observation(obs: dict[str, Any], timestamp: float | None = Non
 class TeleopCaptureController:
     """Thin hardware loop wrapper for target/failure/human-correction capture.
 
-    The implementation is conservative. The new TRACE-VLA collection script can use this
+    The implementation is conservative. The new PACER collection script can use this
     class for live sessions; dry-run/tests use the pure helpers above.
     """
 

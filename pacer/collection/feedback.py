@@ -1,4 +1,4 @@
-"""Terminal feedback prompts for TRACE-VLA collection collection."""
+"""Terminal feedback prompts for PACER collection collection."""
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence

@@ -6,15 +6,15 @@
       "coefficients": {}
     },
     {
-      "eta_id": "tracevla_eta_rw_like",
+      "eta_id": "pacer_eta_rw_like",
       "description": "moderate process-aware correction/demo weighting"
     },
     {
-      "eta_id": "tracevla_eta_terminal_stop_heavy",
+      "eta_id": "pacer_eta_terminal_stop_heavy",
       "description": "emphasize terminal stop/process evidence"
     },
     {
-      "eta_id": "tracevla_eta_correction_heavy",
+      "eta_id": "pacer_eta_correction_heavy",
       "description": "emphasize human/corrector recovery evidence"
     }
   ]

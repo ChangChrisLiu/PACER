@@ -1,4 +1,4 @@
-"""Planner/corrector scoring helpers for TRACE-VLA collection collection."""
+"""Planner/corrector scoring helpers for PACER collection collection."""
 from __future__ import annotations
 
 import math

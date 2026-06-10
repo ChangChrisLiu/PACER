@@ -1,4 +1,4 @@
-# TRACE-VLA hardware/software example configuration.
+# PACER hardware/software example configuration.
 # Copy to configs/local_hardware.yaml and replace placeholders on the lab machine.
 
 policy:
@@ -33,4 +33,4 @@ safety:
 run:
   component: cpu_fan
   prompt: "Manipulate the requested computer part carefully."
-  output_dir: outputs/tracevla_runs
+  output_dir: outputs/pacer_runs
