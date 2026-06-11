@@ -1,52 +1,84 @@
 # PACER
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)
+[![Status: pre-publication](https://img.shields.io/badge/Status-pre--publication-orange.svg)](docs/PREPUBLICATION_SCOPE.md)
+
 PACER stands for **Process-Aware Correction and Evidence Reweighting**. It is a
-research package for improving vision-language-action (VLA) robot policies using
-more than final success/failure labels: PACER keeps the process evidence from
+research codebase for improving vision-language-action (VLA) robot policies
+from more than final success/failure labels. PACER keeps process evidence from
 rollouts, human corrections, clean demonstrations, target geometry, stop events,
-and provenance checks, then converts that evidence into training/evaluation
-views for policy improvement.
+operator labels, and provenance checks, then turns that evidence into auditable
+training and evaluation views for policy improvement.
 
-> **Status: private pre-publication research package** (see `LICENSE`). The code
-> and docs are usable by collaborators today, but interfaces may change before a
-> public release. The repository intentionally contains code, schemas, small
-> synthetic examples, and tests only — not private robot logs, videos,
-> checkpoints, tokens, or lab secrets.
+This repository is organized for GitHub readers who want to understand,
+install, adapt, and verify the method. It contains source code, schemas, small
+synthetic examples, tests, setup notes, and runtime-adapter references. It does
+not contain private robot logs, videos, checkpoints, credentials, raw lab data,
+or final result tables.
 
-## What is in this repository?
+> **Status:** pre-publication research code released under the
+> [MIT License](LICENSE). Interfaces and schemas may still change before the
+> accompanying paper is published. See
+> [docs/PREPUBLICATION_SCOPE.md](docs/PREPUBLICATION_SCOPE.md) for exactly what
+> is included and excluded.
 
-The repository has two practical layers. Both are PACER; they differ only in how
-close they are to a particular robot runtime.
+New to the repo? [docs/GITHUB_ONBOARDING.md](docs/GITHUB_ONBOARDING.md) is the
+fastest install-and-verify checklist; the sections below explain each component
+and document in more depth.
 
-1. `PACER_Framework/`
-   - Robot/VLA-agnostic PACER reference implementation.
-   - Best starting point for new users.
-   - Includes a clean row schema, evidence functions, gates, eta weights,
-     validation scoring, export utilities, adapter hooks, synthetic examples,
-     and a full test suite.
-   - Use this if you want to plug PACER into your own simulator, robot, VLA
-     policy, or offline logs.
+## Repository at a glance
 
-2. `pacer/` and `scripts/`
-   - Existing internal Python package path for the robot-runtime reference
-     integration. The public-facing method name is still PACER.
-   - Includes rollout/correction collection schemas, writer utilities, action
-     chunk compilation, PACER weighting, Bayesian-optimization helper code,
-     policy-inference smoke scripts, and no-hardware dry-runs.
-   - Use this if you already have compatible robot, camera, and model servers
-     and want to adapt the included runtime scripts.
+There are two implementation layers:
 
-New to the repo? Start with `docs/GITHUB_ONBOARDING.md`; it gives a concise
-reading order and checklist.
+- [`PACER_Framework/`](PACER_Framework/) is the generic, robot/VLA-agnostic
+  reference implementation. Start here if you want to apply PACER to your own
+  simulator, robot, VLA model, or offline logs. It contains the standard row
+  schema, evidence functions, eligibility gates, eta-weighted training views,
+  baseline views, open-loop validation metrics, reporting utilities, adapter
+  hook protocols, synthetic examples, and a framework test suite.
+- [`pacer/`](pacer/) plus [`scripts/`](scripts/) is the runtime-adapter layer.
+  It contains collection schemas, writer utilities, rollout/correction helpers,
+  action-chunk compilation, PACER weighting utilities, validation/BO helpers,
+  hardware probe scripts, and dry-run/live entry points for compatible robot,
+  camera, and policy-server environments.
 
-## Installation option A: Python venv
+Use the framework layer to build a new integration. Use the runtime-adapter
+layer when you already have compatible robot/camera/model services and want to
+adapt the included reference scripts.
 
-Use this when you want a lightweight local Python environment.
+## What PACER does
 
-### Generic PACER framework
+A complete PACER loop usually looks like this:
+
+1. Start from an existing base VLA policy checkpoint.
+2. Record base-policy rollouts with observations, action chunks, target
+   metadata, stop events, and outcome/operator labels.
+3. Collect human corrections from weak or failed states, plus clean
+   demonstrations for cells the policy cannot reliably reach.
+4. Validate provenance, target identity, safety flags, and action masks.
+5. Compute explicit process evidence for progress, proximity, terminal target
+   membership, direction/alignment, stop/handoff behavior, operator evidence,
+   and provenance.
+6. Export PACER-weighted rows and controlled baseline views.
+7. Train candidate VLA policies externally, multiplying the native action loss
+   by each exported `loss_weight`.
+8. Evaluate candidates with fixed validation rows, geometry diagnostics,
+   component-balanced scores, and audit gates.
+9. Select an audited candidate for any later protected hardware comparison.
+
+The algorithm and runtime notes are summarized in
+[`docs/PACER_ALGORITHM.md`](docs/PACER_ALGORITHM.md). The framework implementation
+has a more detailed method-to-code map in
+[`PACER_Framework/README.md`](PACER_Framework/README.md).
+
+## Install the generic framework with venv
+
+Use this path for a lightweight local environment and for first-time framework
+verification.
 
 ```bash
-git clone git@github.com:ChangChrisLiu/PACER.git
+git clone https://github.com/ChangChrisLiu/PACER.git
 cd PACER/PACER_Framework
 
 python3 -m venv .venv
@@ -59,29 +91,13 @@ python -m pytest tests -q
 python examples/end_to_end_demo.py
 ```
 
-### Robot-runtime reference integration
+## Install the generic framework with conda
+
+Use conda when your simulator, VLA stack, CUDA stack, OpenPI/OpenVLA
+dependencies, ROS environment, or robot SDK already needs conda isolation.
 
 ```bash
-cd PACER
-
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e '.[test]'
-
-python -m pytest tests -q
-```
-
-## Installation option B: conda
-
-Use conda if your VLA stack, CUDA stack, OpenPI/OpenVLA dependencies, or robot
-runtime already uses conda. PACER itself is lightweight; conda is mainly useful
-for keeping the larger ML/robot dependencies isolated.
-
-### Generic PACER framework with conda
-
-```bash
-git clone git@github.com:ChangChrisLiu/PACER.git
+git clone https://github.com/ChangChrisLiu/PACER.git
 cd PACER/PACER_Framework
 
 conda create -n pacer-framework python=3.10 -y
@@ -94,19 +110,41 @@ python -m pytest tests -q
 python examples/end_to_end_demo.py
 ```
 
-Optional packages:
+Optional framework extras:
 
 ```bash
-# ZMQ collection from a robot/simulator process
+# ZMQ collection from a robot, simulator, or bridge process.
 python -m pip install -e '.[zmq]'
 
-# Wheel/sdist build utilities
+# Wheel/sdist build utilities and test dependency.
 python -m pip install -e '.[dev]'
+
+# Light model-side hints; full CUDA/robot stacks still come from upstream docs.
+python -m pip install -e '.[vla-transformers]'   # transformers + accelerate
+python -m pip install -e '.[lerobot]'            # LeRobot dataset workflows
 ```
 
-### Robot-runtime reference integration with conda
+## Install the runtime-adapter package with venv
+
+Use this path when working with the root `pacer` package and the runtime
+reference scripts.
 
 ```bash
+git clone https://github.com/ChangChrisLiu/PACER.git
+cd PACER
+
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[test]'
+
+python -m pytest tests -q
+```
+
+## Install the runtime-adapter package with conda
+
+```bash
+git clone https://github.com/ChangChrisLiu/PACER.git
 cd PACER
 
 conda create -n pacer-runtime python=3.10 -y
@@ -117,23 +155,30 @@ python -m pip install -e '.[test]'
 python -m pytest tests -q
 ```
 
-If your robot/VLA stack requires PyTorch, JAX, OpenPI, OpenVLA, LeRobot, ROS 2,
-or CUDA-specific wheels, install those following the upstream project
-instructions inside the same conda environment. PACER does not pin those heavy
-stacks because different labs use different robots and accelerator setups.
+The root package also has a `robot` extra (`opencv-python`, `pyzmq`) used by
+the hardware probe scripts:
 
-## Fast no-hardware verification
+```bash
+python -m pip install -e '.[test,robot]'
+```
+
+If your live stack needs PyTorch, JAX, OpenPI, OpenVLA, LeRobot, ROS 2, CUDA
+wheels, camera SDKs, or vendor robot SDKs, install those from their upstream
+instructions inside the same environment. PACER keeps those dependencies out of
+the default install because each lab uses different hardware and model stacks.
+
+## Fast no-hardware checks
 
 These commands should run without a robot. They are the quickest way to check
 that the repository is installed correctly.
 
 ```bash
-# Root package tests.
+# Root runtime-adapter package tests.
 cd PACER
 python -m pytest tests -q
 python -m pytest tests/weighting -q
 
-# Framework tests and demo.
+# Generic framework tests and demo.
 cd PACER_Framework
 python -m pacer_framework.check_setup
 python -m pytest tests -q
@@ -179,58 +224,128 @@ python scripts/robot_runtime/run_rollout_eval.py \
   --dry-run
 ```
 
-## Recommended reading order
+## Generic framework contents
 
-For most new users:
+[`PACER_Framework/`](PACER_Framework/) is a self-contained Python package for
+new PACER integrations. It deliberately avoids robot SDKs, ROS, PyTorch, JAX,
+OpenPI, LeRobot, and hardware imports. Your integration converts robot/model
+objects into plain Python rows; the framework then computes evidence, weights,
+splits, validation scores, and exports.
 
-1. `docs/GITHUB_ONBOARDING.md` — repo-level checklist.
-2. `PACER_Framework/docs/SETUP.md` — installation and dependency notes.
-3. `PACER_Framework/docs/USAGE_QUICKSTART.md` — shortest framework workflow.
-4. `PACER_Framework/docs/DATA_CONTRACT.md` — required row schema.
-5. `PACER_Framework/docs/ADAPTER_HOOKS.md` — where to connect your robot/model.
-6. `PACER_Framework/docs/RUNBOOK_DATA_COLLECTION.md` — how to collect rollouts,
-   corrections, and clean demos.
-7. `PACER_Framework/docs/RUNBOOK_TRAINING_PREP.md` — exporting PACER and
-   baseline views for training.
-8. `PACER_Framework/docs/RUNBOOK_EVALUATION.md` — offline validation,
-   candidate selection, and audit checks.
+Important framework files and docs:
 
-For live robot or ZMQ integration:
+- [`PACER_Framework/README.md`](PACER_Framework/README.md) explains the generic
+  PACER pipeline, package layout, hook boundaries, and claim-to-test map.
+- [`PACER_Framework/docs/SETUP.md`](PACER_Framework/docs/SETUP.md) covers clone,
+  install, verification, and optional integration dependency patterns.
+- [`PACER_Framework/docs/USAGE_QUICKSTART.md`](PACER_Framework/docs/USAGE_QUICKSTART.md)
+  gives the shortest path for applying PACER to a new robot/VLA system.
+- [`PACER_Framework/docs/DATA_CONTRACT.md`](PACER_Framework/docs/DATA_CONTRACT.md)
+  defines the standard training rows, validation rows, eta configs, and produced
+  manifests consumed by the framework.
+- [`PACER_Framework/docs/ADAPTER_HOOKS.md`](PACER_Framework/docs/ADAPTER_HOOKS.md)
+  shows how to connect robot geometry, VLA inference, and training without
+  importing heavy runtime stacks into PACER.
+- [`PACER_Framework/docs/RUNBOOK_DATA_COLLECTION.md`](PACER_Framework/docs/RUNBOOK_DATA_COLLECTION.md),
+  [`RUNBOOK_TRAINING_PREP.md`](PACER_Framework/docs/RUNBOOK_TRAINING_PREP.md),
+  and [`RUNBOOK_EVALUATION.md`](PACER_Framework/docs/RUNBOOK_EVALUATION.md)
+  expand the data, training-view, and evaluation stages.
+- [`PACER_Framework/docs/ZMQ_COLLECTION.md`](PACER_Framework/docs/ZMQ_COLLECTION.md)
+  and [`PACER_Framework/docs/TELEOP_COLLECTION_INFERENCE.md`](PACER_Framework/docs/TELEOP_COLLECTION_INFERENCE.md)
+  describe optional networked collection and a concrete terminal layout.
+- [`PACER_Framework/examples/`](PACER_Framework/examples/) contains synthetic
+  rows, candidate configs, and an end-to-end demo. These examples are templates
+  for integration testing, not paper results.
+- [`PACER_Framework/tests/`](PACER_Framework/tests/) locks the row schema,
+  evidence math, weighting, baselines, validation, reporting, and the synthetic
+  end-to-end path.
 
-- `PACER_Framework/docs/ZMQ_COLLECTION.md` — generic ZMQ JSONL ingestion.
-- `PACER_Framework/docs/TELEOP_COLLECTION_INFERENCE.md` — terminal layout,
-  teleop capture, default ports, saved artifacts, and inference workflow.
-- `docs/HARDWARE_SOFTWARE_SETUP.md` — robot/software bring-up notes.
-- `docs/ROBOT_RUNTIME_INTEGRATION.md` — scope of the runtime adapter scripts.
-- `docs/ZMQ_AGENT_CONTRACT.md` — policy/agent ZMQ request-response contract.
-- `docs/PACER_ALGORITHM.md` — PACER weighting, eta, validation, and BO notes.
-- `docs/PREPUBLICATION_SCOPE.md` — what is intentionally not included.
-- `docs/INTERNAL_HANDOFFS_NOT_INCLUDED.md` — internal pipelines excluded from
-  this package.
+## Runtime-adapter package contents
 
-## PACER workflow in one page
+[`pacer/`](pacer/) is the root runtime package. It is useful when adapting the
+included reference scripts to an existing robot/VLA runtime.
 
-A complete PACER loop usually looks like this:
+- [`pacer/collection/`](pacer/collection/) contains collection configuration,
+  feedback schemas, compatibility checks, target/reference caches, trial
+  planning, teleop capture helpers, scoring utilities, inference wrappers, and
+  trial writers.
+- [`pacer/rollout_eval/`](pacer/rollout_eval/) contains rollout-evaluation plan,
+  feedback, runner, and writer utilities.
+- [`pacer/weighting/`](pacer/weighting/) contains action-chunk compilation,
+  PACER eta-weight materialization, validation scoring, evaluation-contract
+  checks, local validation helpers, training-manifest utilities, and
+  Bayesian-optimization helpers over eta candidates.
 
-1. **Start from a base VLA policy.** Serve or load a policy checkpoint through
-   your existing model stack.
-2. **Run rollouts.** Record observations, model actions, target regions, stop
-   events, and operator labels.
-3. **Collect process evidence.** Add human corrections or clean demonstrations
-   for weak or failed states, using the same target/config conventions.
-4. **Validate provenance and safety.** Reject rows with invalid masks,
-   mismatched target identity, unsafe stops, missing manifests, or quarantined
-   trials.
-5. **Compute PACER evidence.** Extract progress, proximity, terminal success,
-   direction, stop/handoff behavior, operator evidence, and provenance evidence.
-6. **Materialize training views.** Export PACER-weighted rows plus baseline
-   views so comparisons are controlled.
-7. **Train candidate policies externally.** PACER prepares data and weights; the
-   actual VLA training loop stays in your model-specific stack.
-8. **Evaluate candidates.** Use offline validation and, for selected candidates,
-   controlled robot rollouts under fixed norm-stat and safety discipline.
-9. **Update eta settings.** Validation scores can guide eta selection/BO, while
-   held-out robot success remains the final deployment claim.
+The runtime package is not a complete robot controller. It expects the robot,
+camera, policy server, and safety layers to be supplied by the deployment
+environment.
+
+## Scripts and live integration
+
+[`scripts/`](scripts/) provides command-line entry points for no-hardware
+smokes, dry-runs, and compatible live environments:
+
+- [`scripts/hardware/run_policy_inference.py`](scripts/hardware/run_policy_inference.py)
+  probes a policy backend or mock backend with a single observation.
+- [`scripts/hardware/zmq_agent_probe.py`](scripts/hardware/zmq_agent_probe.py)
+  sends safe probe requests such as `ping` and `status` to local ZMQ agents.
+- [`scripts/robot_runtime/run_correction_collection.py`](scripts/robot_runtime/run_correction_collection.py)
+  plans or runs rollout/correction/demo collection blocks.
+- [`scripts/robot_runtime/run_rollout_eval.py`](scripts/robot_runtime/run_rollout_eval.py)
+  plans or runs rollout-only candidate evaluation.
+
+Live robot commands require explicit hardware confirmation in the scripts that
+support motion. Always run the matching `--dry-run` first and confirm the output
+root, config IDs, components, counts, safety monitor, and physical E-stop.
+
+[`docs/ROBOT_RUNTIME_INTEGRATION.md`](docs/ROBOT_RUNTIME_INTEGRATION.md)
+describes the runtime adapter scope.
+[`docs/HARDWARE_SOFTWARE_SETUP.md`](docs/HARDWARE_SOFTWARE_SETUP.md) lists the
+expected four-process topology: robot bridge, camera/observation service,
+policy server, and PACER runner. [`docs/ZMQ_AGENT_CONTRACT.md`](docs/ZMQ_AGENT_CONTRACT.md)
+documents the small JSON contract used by hardware probes and local bridges.
+
+## Configs, examples, and tests
+
+- [`configs/pacer_hardware.example.yaml`](configs/pacer_hardware.example.yaml)
+  is a placeholder hardware/runtime config. Copy it locally and fill in private
+  addresses, checkpoint paths, and secrets outside git.
+- [`configs/pi05_rollout_then_correction.example.yaml`](configs/pi05_rollout_then_correction.example.yaml)
+  documents the shape of a Pi0.5/OpenPI-style rollout-then-correction plan.
+- [`examples/eta_candidates.json`](examples/eta_candidates.json) and
+  [`examples/minimal_scores.json`](examples/minimal_scores.json) are small
+  runtime-layer examples for weighting and validation helpers.
+- [`tests/`](tests/) covers the root runtime package, hardware-script dry-run
+  behavior, PACER tolerances, weighting, validation scoring, BO helpers, and
+  manifest validation.
+
+## Root documentation
+
+The root [`docs/`](docs/) folder explains the publication-facing runtime and
+repo-boundary topics:
+
+- [`docs/GITHUB_ONBOARDING.md`](docs/GITHUB_ONBOARDING.md) is a compact
+  checklist for installing, verifying, and deciding which layer to use.
+- [`docs/DATA_CONTRACT.md`](docs/DATA_CONTRACT.md) gives a short runtime-layer
+  data-contract summary for rollout, correction, clean-demo, and weighted-view
+  artifacts.
+- [`docs/PACER_ALGORITHM.md`](docs/PACER_ALGORITHM.md) summarizes process
+  evidence, hard gates, eta scoring, weighting, validation, and claim-control
+  rules.
+- [`docs/QUICKSTART_PI05.md`](docs/QUICKSTART_PI05.md) shows a Pi0.5/OpenPI
+  style model-to-rollout-to-correction-to-PACER workflow.
+- [`docs/HARDWARE_SOFTWARE_SETUP.md`](docs/HARDWARE_SOFTWARE_SETUP.md) explains
+  live stack prerequisites, process topology, dry-runs, and live hardware gates.
+- [`docs/ROBOT_RUNTIME_INTEGRATION.md`](docs/ROBOT_RUNTIME_INTEGRATION.md)
+  clarifies that the runtime scripts are adapters, not standalone hardware
+  drivers.
+- [`docs/ZMQ_AGENT_CONTRACT.md`](docs/ZMQ_AGENT_CONTRACT.md) defines safe ZMQ
+  probe messages and bridge expectations.
+- [`docs/PREPUBLICATION_SCOPE.md`](docs/PREPUBLICATION_SCOPE.md) records what
+  is included and intentionally excluded from this research extraction.
+- [`docs/INTERNAL_HANDOFFS_NOT_INCLUDED.md`](docs/INTERNAL_HANDOFFS_NOT_INCLUDED.md)
+  explains why local run handoffs, private job paths, raw logs, and scratch
+  reviews are not part of the repository.
 
 ## Data collection modes
 
@@ -251,13 +366,13 @@ For the runtime adapter scripts, saved trial folders follow this shape:
   frame_0000.pkl
   episode_meta.json
   target_region.json
-  pacer_trial_feedback.json      # legacy filename in the current writer
-  pacer_auto_score.json          # legacy filename in the current writer
+  pacer_trial_feedback.json
+  pacer_auto_score.json
   vla_action_trace.jsonl
 ```
 
-New integrations should follow the PACER row schema in
-`PACER_Framework/docs/DATA_CONTRACT.md`.
+New integrations should follow the framework row schema in
+[`PACER_Framework/docs/DATA_CONTRACT.md`](PACER_Framework/docs/DATA_CONTRACT.md).
 
 ## Live robot architecture
 
@@ -281,13 +396,13 @@ planner model      : 8000
 corrector model    : 8001
 ```
 
-Live commands require `--confirm-hardware`. Always run the matching `--dry-run`
-first, confirm that the output root is correct, and verify that your robot safety
-stack and physical E-stop are active.
+Live commands require explicit hardware confirmation where supported. Always run
+the matching `--dry-run` first, confirm that the output root is correct, and
+verify that the robot safety stack and physical E-stop are active.
 
 ## What PACER does not provide
 
-PACER is not a complete robot stack. This repo does not provide:
+PACER is not a complete robot stack. This repository does not provide:
 
 - robot drivers;
 - camera drivers;
@@ -298,8 +413,8 @@ PACER is not a complete robot stack. This repo does not provide:
 - a universal OpenPI/OpenVLA/LeRobot training recipe.
 
 Instead, PACER provides the evidence schema, weighting logic, validation logic,
-export utilities, reference adapters, and tests that you connect to your own
-robot/model infrastructure.
+export utilities, reference adapters, examples, and tests that you connect to
+your own robot/model infrastructure.
 
 ## Safety and repository hygiene
 
@@ -331,4 +446,8 @@ checkpoints, logs, pycache folders, or local scratch files are staged.
 
 ## License
 
-See `LICENSE`.
+This repository is released under the [MIT License](LICENSE)
+(copyright © 2026 Chris Liu). The license covers the code, schemas, examples,
+and documentation in this repository. Private datasets, checkpoints, and lab
+infrastructure are not part of the repository and are not covered by this
+grant.

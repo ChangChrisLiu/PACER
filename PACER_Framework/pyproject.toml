@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=68"]
+# setuptools>=77 is required for the PEP 639 string form of project.license.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +8,7 @@ name = "pacer-framework"
 version = "0.1.0"
 description = "Robot/VLA-agnostic reference implementation of PACER: process-aware correction and evidence reweighting for VLA post-training."
 requires-python = ">=3.10"
+license = "MIT"
 dependencies = []
 
 [project.optional-dependencies]
