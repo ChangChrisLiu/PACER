@@ -1,4 +1,4 @@
-"""PACER/SFT++ training-run manifest utilities.
+"""PACER training-run manifest utilities.
 
 This module is offline-only. It records how to combine original SFT checkpoints
 with PACER weighted views without launching training or touching hardware.
@@ -15,7 +15,7 @@ DEFAULT_ABLATION_METHODS = (
     "uniform_replay",
     "correction_only",
     "outcome_only",
-    "fixed_rw_fma",
+    "fixed_geometry",
     "random_weight",
     "pacer_eta_rw_like",
     "pacer_eta_progress_heavy",
@@ -85,7 +85,7 @@ echo "Dataset verified: $DATASET_DIR"
 
 # ── Stage 1.5: Verify norm_stats exists ──
 echo ">>> Stage 1.5: Verify norm_stats for {method}"
-NORM_FILE="$OPENPI_ROOT/assets/pi05_droid_ur5e_pacer_rwfma_lora_10hz/$REPO_ID/norm_stats.json"
+NORM_FILE="$OPENPI_ROOT/assets/pacer_runtime_lora_10hz/$REPO_ID/norm_stats.json"
 if [ ! -f "$NORM_FILE" ]; then
   echo "ERROR: norm_stats not found at $NORM_FILE"
   exit 1
@@ -95,7 +95,7 @@ echo "norm_stats verified: $NORM_FILE"
 # ── Stage 2: Train LoRA via OpenPI ──
 echo ">>> Stage 2: Train LoRA for {method} ({steps} steps)"
 cd "$OPENPI_ROOT"
-uv run python scripts/train.py pi05_droid_ur5e_pacer_rwfma_lora_10hz \\
+uv run python scripts/train.py pacer_runtime_lora_10hz \\
   --data.repo-id "$REPO_ID" \\
   --exp-name "pacer_{method}_${{SLURM_JOB_ID:-local}}" \\
   --checkpoint-base-dir "$RUN_DIR/openpi_lora_output" \\
@@ -130,11 +130,17 @@ def build_pacer_training_run_plan(
     weighted_views_root: str | Path,
     output_root: str | Path,
     methods: Iterable[str] = DEFAULT_ABLATION_METHODS,
-    hprc_openpi_root: str = "/scratch/$USER/openpi",
-    hprc_robot_runtime_root: str = "/scratch/$USER/PACER",
+    cluster_openpi_root: str = "/scratch/$USER/openpi",
+    cluster_robot_runtime_root: str = "/scratch/$USER/PACER",
+    hprc_openpi_root: str | None = None,
+    hprc_robot_runtime_root: str | None = None,
     steps: int = 8500,
 ) -> dict[str, Any]:
-    """Build a reviewer-safe local/HPRC training plan without launching jobs."""
+    """Build a reviewer-safe local/cluster training plan without launching jobs."""
+    if hprc_openpi_root is not None:
+        cluster_openpi_root = hprc_openpi_root
+    if hprc_robot_runtime_root is not None:
+        cluster_robot_runtime_root = hprc_robot_runtime_root
     weighted_views_root = Path(weighted_views_root)
     output_root = Path(output_root)
     method_list = list(methods)
@@ -156,7 +162,7 @@ def build_pacer_training_run_plan(
         "comparison_role": "same_base_demonstration_addition_baseline",
         "legacy_unmerged_original_sft_checkpoint": str(Path(unmerged_original_sft_checkpoint)) if unmerged_original_sft_checkpoint else None,
         "local_run_dir": str(sftpp_dir),
-        "hprc_slurm_path": str(sftpp_dir / "train_job.slurm"),
+        "cluster_slurm_path": str(sftpp_dir / "train_job.slurm"),
         "validation_scores_path": str(sftpp_dir / "validation" / "scores.json"),
         "eval_schema": "pacer_bo_eval_scores.v0.1",
         "steps": int(steps),
@@ -177,7 +183,7 @@ def build_pacer_training_run_plan(
                 "trainable_adapter": "new_lora",
                 "local_run_dir": str(run_dir),
                 "new_lora_output_dir": str(run_dir / "openpi_lora_output"),
-                "hprc_slurm_path": str(run_dir / "train_job.slurm"),
+                "cluster_slurm_path": str(run_dir / "train_job.slurm"),
                 "validation_scores_path": str(run_dir / "validation" / "scores.json"),
                 "eval_schema": "pacer_bo_eval_scores.v0.1",
                 "steps": int(steps),
@@ -191,9 +197,9 @@ def build_pacer_training_run_plan(
             "Main-table SFT++ starts from the same merged original SFT checkpoint as the weighting ablations and adds PACER clean/correction demonstrations.",
             "Ablation runs also start from the same merged original SFT checkpoint and train a fresh LoRA per method.",
             "Any unmerged-original SFT++ run is legacy/diagnostic only, not a strict main-table ablation.",
-            "RW-FMA 8499 observed weak stop-token emission and angled approach; eval must include stop/approach scores.",
+            "Validation must include stop/handoff and approach-alignment diagnostics so known failure modes cannot be optimized away.",
         ],
-        "hprc": {"openpi_root": hprc_openpi_root, "robot_runtime_root": hprc_robot_runtime_root},
+        "cluster": {"openpi_root": cluster_openpi_root, "robot_runtime_root": cluster_robot_runtime_root},
         "sftpp_demo_run": sftpp_demo_run,
         "ablation_lora_runs": ablation_runs,
     }
@@ -262,9 +268,9 @@ def materialize_training_run_plan(plan: Mapping[str, Any], output_root: str | Pa
     """Write per-run manifests and Slurm skeletons. Does not submit jobs."""
     output_root = Path(output_root)
     output_root.mkdir(parents=True, exist_ok=True)
-    hprc = plan.get("hprc", {}) if isinstance(plan.get("hprc"), Mapping) else {}
-    sea_root = str(hprc.get("robot_runtime_root", "/scratch/$USER/PACER"))
-    openpi_root = str(hprc.get("openpi_root", "/scratch/$USER/openpi"))
+    cluster = plan.get("cluster", {}) if isinstance(plan.get("cluster"), Mapping) else {}
+    runtime_root = str(cluster.get("robot_runtime_root", "/scratch/$USER/PACER"))
+    openpi_root = str(cluster.get("openpi_root", "/scratch/$USER/openpi"))
 
     def write_run(run: Mapping[str, Any]) -> dict[str, str]:
         run_dir = Path(str(run["local_run_dir"]))
@@ -272,12 +278,12 @@ def materialize_training_run_plan(plan: Mapping[str, Any], output_root: str | Pa
         (run_dir / "validation").mkdir(exist_ok=True)
         manifest_path = run_dir / "training_run_manifest.json"
         manifest_path.write_text(json.dumps(run, indent=2, sort_keys=True))
-        slurm_path = Path(str(run["hprc_slurm_path"]))
+        slurm_path = Path(str(run.get("cluster_slurm_path") or run.get("hprc_slurm_path")))
         slurm_path.parent.mkdir(parents=True, exist_ok=True)
         slurm_path.write_text(
             _slurm_text(
                 method=str(run.get("method", "unknown")),
-                robot_runtime_root=sea_root,
+                robot_runtime_root=runtime_root,
                 openpi_root=openpi_root,
                 steps=int(run.get("steps", 0)),
             )

@@ -1,6 +1,6 @@
 # Teleop, ZMQ collection, and inference workflow
 
-This document explains how PACER/TRACE-style data collection is meant to work
+This document explains how PACER-style data collection is meant to work
 when the GitHub repo is used on a new robot computer.
 
 There are two layers:
@@ -10,7 +10,7 @@ There are two layers:
    candidates. It also includes an optional generic ZMQ JSON collector:
    `python -m pacer_framework.collect_zmq`.
 2. Robot runtime integration — your lab-specific robot/camera/model process.
-   In the current SEA-VLA reference, this is represented by
+   In the included reference runtime adapter, this is represented by
    `PACER/scripts/robot_runtime/run_correction_collection.py` and
    `PACER/scripts/robot_runtime/run_rollout_eval.py`. These scripts expect
    external robot-runtime imports such as `src.comms.robot_node.ZMQClientRobot`,
@@ -49,7 +49,7 @@ Live robot runtime environment, installed separately:
 - OpenPI/OpenVLA/OpenVLA-OFT client/server packages as needed;
 - any vendor SDK / ROS 2 / simulator bindings required by the robot.
 
-In the SEA-VLA integration reference, the live collection script imports:
+In one compatible runtime integration, the live collection script imports:
 
 ```text
 src.agents.joystick_agent.JoystickAgent, load_home_pose
@@ -72,7 +72,7 @@ Use separate terminals/processes so failures are isolated.
 T1 robot server     : launches robot controller / ZMQ robot endpoint
 T2 camera servers   : launches wrist + base camera ZMQ endpoints
 T3 model server     : launches one VLA policy server/checkpoint
-T4 collector/eval   : runs PACER/TRACE collection or rollout-eval script
+T4 collector/eval   : runs PACER collection or rollout-eval script
 ```
 
 Default ports from the current integration scripts:
@@ -100,7 +100,7 @@ Teleop is used for three things:
 3. clean full demonstration: operator records a clean from-home demonstration
    under the same target/config conventions.
 
-The SEA-VLA reference teleop wrapper is:
+The reference teleop wrapper is:
 
 ```text
 PACER/pacer/collection/teleop_capture.py
@@ -118,7 +118,7 @@ It wraps the runtime `JoystickAgent` and `ZMQClientRobot`:
 - snapshots become target/failure/reference points.
 
 For a new repo user, implement the same shape in `RobotHooks` if not using the
-SEA-VLA runtime directly.
+included runtime adapter directly.
 
 ## 4. Data-collection modes
 
@@ -212,7 +212,7 @@ These raw artifacts are later converted into PACER standard rows matching
 
 ## 6. Generic ZMQ JSON collection path
 
-If a new robot stack does not want to use the SEA-VLA collection script, use the
+If a new robot stack does not want to use the included runtime collection script, use the
 framework's generic JSONL collector:
 
 ```bash

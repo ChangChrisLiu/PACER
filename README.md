@@ -71,6 +71,8 @@ The algorithm and runtime notes are summarized in
 [`docs/PACER_ALGORITHM.md`](docs/PACER_ALGORITHM.md). The framework implementation
 has a more detailed method-to-code map in
 [`PACER_Framework/README.md`](PACER_Framework/README.md).
+For the publication-wide claim matrix across both layers, see
+[`docs/PAPER_CLAIM_ALIGNMENT.md`](docs/PAPER_CLAIM_ALIGNMENT.md).
 
 ## Install the generic framework with venv
 
@@ -332,6 +334,8 @@ repo-boundary topics:
 - [`docs/PACER_ALGORITHM.md`](docs/PACER_ALGORITHM.md) summarizes process
   evidence, hard gates, eta scoring, weighting, validation, and claim-control
   rules.
+- [`docs/PAPER_CLAIM_ALIGNMENT.md`](docs/PAPER_CLAIM_ALIGNMENT.md) maps paper
+  claims to publication-safe code, docs, and tests.
 - [`docs/QUICKSTART_PI05.md`](docs/QUICKSTART_PI05.md) shows a Pi0.5/OpenPI
   style model-to-rollout-to-correction-to-PACER workflow.
 - [`docs/HARDWARE_SOFTWARE_SETUP.md`](docs/HARDWARE_SOFTWARE_SETUP.md) explains

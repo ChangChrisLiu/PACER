@@ -28,13 +28,13 @@ REQUIRED_BO_SCORE_KEYS = frozenset(
         "stop_token_timing_score",
         "approach_axis_alignment",
         "approach_lateral_drift_score",
-        "J_B_val",
+        "J_val",
     }
 )
 
 _COSINE_SCORE_KEYS = {"tcp_direction_cosine", "action_vector_direction_cosine"}
 
-RECOMMENDED_J_B_VAL_WEIGHTS = {
+RECOMMENDED_J_VAL_WEIGHTS = {
     "component_macro_score": 0.18,
     "clean_demo_action_alignment": 0.10,
     "correction_route_alignment": 0.12,
@@ -47,21 +47,25 @@ RECOMMENDED_J_B_VAL_WEIGHTS = {
     "approach_lateral_drift_score": 0.05,
 }
 
+# Backward-compatible alias for older local scripts. New code should use
+# RECOMMENDED_J_VAL_WEIGHTS and compute_recommended_j_val.
+RECOMMENDED_J_B_VAL_WEIGHTS = RECOMMENDED_J_VAL_WEIGHTS
 
-def compute_recommended_j_b_val(scores: Mapping[str, Any]) -> float:
+
+def compute_recommended_j_val(scores: Mapping[str, Any]) -> float:
     """Compute a VLM-free PACER validation objective for PACER selection.
 
-    This intentionally includes the two failure modes observed on the previous
-    RW-FMA 8499 checkpoint: weak stop-token emission and angled/lateral
-    approach. Action-vector direction remains diagnostic and is not included.
-    Wrong-target or unsafe leakage is a hard failure for candidate ranking.
+    The objective includes stop/handoff and approach-alignment diagnostics so
+    candidate ranking cannot ignore those process failures. Action-vector
+    direction remains diagnostic and is not included. Wrong-target or unsafe
+    leakage is a hard failure for candidate ranking.
     """
     leakage = scores.get("wrong_target_or_unsafe_leakage", 0.0)
     if _finite_number(leakage) and float(leakage) > 0.0:
         return 0.0
     total = 0.0
     weight_sum = 0.0
-    for key, weight in RECOMMENDED_J_B_VAL_WEIGHTS.items():
+    for key, weight in RECOMMENDED_J_VAL_WEIGHTS.items():
         value = scores.get(key)
         if key == "tcp_direction_cosine" and value is not None:
             # Convert cosine [-1,1] into score [0,1].
@@ -76,6 +80,11 @@ def compute_recommended_j_b_val(scores: Mapping[str, Any]) -> float:
     return max(0.0, min(1.0, total / weight_sum))
 
 
+def compute_recommended_j_b_val(scores: Mapping[str, Any]) -> float:
+    """Backward-compatible alias for older local scripts; prefer compute_recommended_j_val."""
+    return compute_recommended_j_val(scores)
+
+
 def _finite_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
 
@@ -87,6 +96,24 @@ def _score_in_range(key: str, value: Any) -> bool:
         return False
     lower = -1.0 if key in _COSINE_SCORE_KEYS else 0.0
     return lower <= float(value) <= 1.0
+
+
+def _score_value(scores: Mapping[str, Any], key: str) -> Any:
+    """Return canonical score value, accepting legacy aliases for old artifacts."""
+    if key in scores:
+        return scores.get(key)
+    if key == "J_val":
+        return scores.get("J_B_val")
+    return None
+
+
+def _authority_value(authority: Mapping[str, Any], key: str) -> Any:
+    """Return canonical authority value, accepting legacy aliases for old artifacts."""
+    if key in authority:
+        return authority.get(key)
+    if key == "direction_metric_for_J_val":
+        return authority.get("direction_metric_for_J_B_val")
+    return None
 
 
 def validate_pacer_bo_eval_report(report: Mapping[str, Any]) -> list[str]:
@@ -110,9 +137,10 @@ def validate_pacer_bo_eval_report(report: Mapping[str, Any]) -> list[str]:
         errors.append("scores_must_be_object")
     else:
         for key in sorted(REQUIRED_BO_SCORE_KEYS):
-            if key not in scores:
+            value = _score_value(scores, key)
+            if value is None and key not in _COSINE_SCORE_KEYS:
                 errors.append(f"missing_score:{key}")
-            elif not _score_in_range(key, scores.get(key)):
+            elif not _score_in_range(key, value):
                 errors.append(f"bad_score:{key}")
 
     # Keep the reported BO objective tied to the source-of-truth objective so
@@ -121,10 +149,10 @@ def validate_pacer_bo_eval_report(report: Mapping[str, Any]) -> list[str]:
     if isinstance(scores, Mapping) and _finite_number(scores.get("wrong_target_or_unsafe_leakage")):
         if float(scores["wrong_target_or_unsafe_leakage"]) != 0.0:
             errors.append("wrong_target_or_unsafe_leakage_must_be_zero")
-    if isinstance(scores, Mapping) and _finite_number(scores.get("J_B_val")):
-        recommended = compute_recommended_j_b_val(scores)
-        if abs(float(scores["J_B_val"]) - recommended) > 1e-6:
-            errors.append("j_b_val_mismatch_recommended_objective")
+    if isinstance(scores, Mapping) and _finite_number(_score_value(scores, "J_val")):
+        recommended = compute_recommended_j_val(scores)
+        if abs(float(_score_value(scores, "J_val")) - recommended) > 1e-6:
+            errors.append("j_val_mismatch_recommended_objective")
 
     authority = report.get("metric_authority")
     if not isinstance(authority, Mapping):
@@ -134,8 +162,8 @@ def validate_pacer_bo_eval_report(report: Mapping[str, Any]) -> list[str]:
             errors.append("external_semantic_scalar_authority_used_must_be_false")
         if authority.get("external_semantic_action_authority_used") is not False:
             errors.append("external_semantic_action_authority_used_must_be_false")
-        if authority.get("direction_metric_for_J_B_val") not in {"tcp_direction_cosine", "none"}:
-            errors.append("direction_metric_for_J_B_val_must_be_tcp_or_none")
+        if _authority_value(authority, "direction_metric_for_J_val") not in {"tcp_direction_cosine", "none"}:
+            errors.append("direction_metric_for_J_val_must_be_tcp_or_none")
         if authority.get("action_vector_direction_is_diagnostic_only") is not True:
             errors.append("action_vector_direction_must_remain_diagnostic_only")
         if not authority.get("coordinate_convention"):
@@ -164,7 +192,11 @@ def validate_pacer_bo_eval_report(report: Mapping[str, Any]) -> list[str]:
 
 
 def pacer_bo_eval_json_schema() -> dict[str, Any]:
-    """Return a dependency-free JSON Schema-style description for scores.json."""
+    """Return a dependency-free JSON Schema-style description for scores.json.
+
+    The schema documents the canonical paper-facing `J_val` contract. The Python
+    validator also accepts legacy local artifacts that used `J_B_val` aliases.
+    """
     score_properties = {
         key: {
             "type": ["number", "null"] if key in _COSINE_SCORE_KEYS else "number",
@@ -202,14 +234,14 @@ def pacer_bo_eval_json_schema() -> dict[str, Any]:
                 "required": [
                     "external_semantic_scalar_authority_used",
                     "external_semantic_action_authority_used",
-                    "direction_metric_for_J_B_val",
+                    "direction_metric_for_J_val",
                     "action_vector_direction_is_diagnostic_only",
                     "coordinate_convention",
                 ],
                 "properties": {
                     "external_semantic_scalar_authority_used": {"const": False},
                     "external_semantic_action_authority_used": {"const": False},
-                    "direction_metric_for_J_B_val": {"enum": ["tcp_direction_cosine", "none"]},
+                    "direction_metric_for_J_val": {"enum": ["tcp_direction_cosine", "none"]},
                     "action_vector_direction_is_diagnostic_only": {"const": True},
                     "coordinate_convention": {"type": "string"},
                 },

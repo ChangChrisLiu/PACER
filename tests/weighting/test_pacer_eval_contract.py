@@ -1,7 +1,7 @@
 from pacer.weighting.pacer_eval_contract import (
     PACER_BO_EVAL_SCHEMA_VERSION,
     REQUIRED_BO_SCORE_KEYS,
-    compute_recommended_j_b_val,
+    compute_recommended_j_val,
     pacer_bo_eval_json_schema,
     validate_pacer_bo_eval_report,
 )
@@ -33,7 +33,7 @@ def _valid_report():
             "stop_token_timing_score": 0.74,
             "approach_axis_alignment": 0.69,
             "approach_lateral_drift_score": 0.71,
-            "J_B_val": 0.76,
+            "J_val": 0.76,
         },
         "component_scores": {
             "ram": {"component_macro_score": 0.66},
@@ -42,7 +42,7 @@ def _valid_report():
         "metric_authority": {
             "external_semantic_scalar_authority_used": False,
             "external_semantic_action_authority_used": False,
-            "direction_metric_for_J_B_val": "tcp_direction_cosine",
+            "direction_metric_for_J_val": "tcp_direction_cosine",
             "action_vector_direction_is_diagnostic_only": True,
             "coordinate_convention": "eef_delta_in_base_frame",
         },
@@ -53,7 +53,7 @@ def _valid_report():
             "heldout_loss_eligible_rows": 0,
         },
     }
-    report["scores"]["J_B_val"] = compute_recommended_j_b_val(report["scores"])
+    report["scores"]["J_val"] = compute_recommended_j_val(report["scores"])
     return report
 
 
@@ -63,10 +63,18 @@ def test_eval_contract_accepts_reviewer_safe_scores_json():
 
     schema = pacer_bo_eval_json_schema()
     assert schema["properties"]["scores"]["required"] == sorted(REQUIRED_BO_SCORE_KEYS)
-    assert schema["properties"]["metric_authority"]["properties"]["direction_metric_for_J_B_val"]["enum"] == [
+    assert schema["properties"]["metric_authority"]["properties"]["direction_metric_for_J_val"]["enum"] == [
         "tcp_direction_cosine",
         "none",
     ]
+
+
+def test_eval_contract_accepts_legacy_j_b_val_aliases_for_old_artifacts():
+    report = _valid_report()
+    report["scores"]["J_B_val"] = report["scores"].pop("J_val")
+    report["metric_authority"]["direction_metric_for_J_B_val"] = report["metric_authority"].pop("direction_metric_for_J_val")
+
+    assert validate_pacer_bo_eval_report(report) == []
 
 
 def test_eval_contract_blocks_external_semantic_scalar_or_action_authority():
@@ -81,14 +89,14 @@ def test_eval_contract_blocks_external_semantic_scalar_or_action_authority():
 
 def test_eval_contract_keeps_action_vector_direction_diagnostic_only():
     report = _valid_report()
-    report["metric_authority"]["direction_metric_for_J_B_val"] = "action_vector_direction_cosine"
+    report["metric_authority"]["direction_metric_for_J_val"] = "action_vector_direction_cosine"
     report["metric_authority"]["action_vector_direction_is_diagnostic_only"] = False
     errors = validate_pacer_bo_eval_report(report)
-    assert "direction_metric_for_J_B_val_must_be_tcp_or_none" in errors
+    assert "direction_metric_for_J_val_must_be_tcp_or_none" in errors
     assert "action_vector_direction_must_remain_diagnostic_only" in errors
 
 
-def test_eval_contract_requires_stop_and_approach_scores_for_rw_fma_8499_failure_modes():
+def test_eval_contract_requires_stop_and_approach_scores_for_fixed_geometry_example_failure_modes():
     report = _valid_report()
     del report["scores"]["stop_token_emission_score"]
     del report["scores"]["approach_axis_alignment"]
@@ -99,21 +107,21 @@ def test_eval_contract_requires_stop_and_approach_scores_for_rw_fma_8499_failure
     assert "missing_score:approach_axis_alignment" in errors
 
 
-def test_recommended_j_b_val_penalizes_weak_stop_and_angled_approach():
+def test_recommended_j_val_penalizes_weak_stop_and_angled_approach():
     good = _valid_report()["scores"]
     good = dict(good)
-    good["J_B_val"] = compute_recommended_j_b_val(good)
+    good["J_val"] = compute_recommended_j_val(good)
     bad = dict(good)
     bad["stop_token_emission_score"] = 0.1
     bad["stop_token_timing_score"] = 0.2
     bad["approach_axis_alignment"] = 0.2
     bad["approach_lateral_drift_score"] = 0.2
 
-    assert compute_recommended_j_b_val(good) > compute_recommended_j_b_val(bad)
-    assert 0.0 <= compute_recommended_j_b_val(bad) <= 1.0
+    assert compute_recommended_j_val(good) > compute_recommended_j_val(bad)
+    assert 0.0 <= compute_recommended_j_val(bad) <= 1.0
 
 
-def test_eval_contract_rejects_j_b_val_that_ignores_stop_and_approach_terms():
+def test_eval_contract_rejects_j_val_that_ignores_stop_and_approach_terms():
     report = _valid_report()
     for key in [
         "stop_token_emission_score",
@@ -122,30 +130,30 @@ def test_eval_contract_rejects_j_b_val_that_ignores_stop_and_approach_terms():
         "approach_lateral_drift_score",
     ]:
         report["scores"][key] = 0.0
-    report["scores"]["J_B_val"] = 1.0
+    report["scores"]["J_val"] = 1.0
 
     errors = validate_pacer_bo_eval_report(report)
 
-    assert "j_b_val_mismatch_recommended_objective" in errors
+    assert "j_val_mismatch_recommended_objective" in errors
 
 
 def test_eval_contract_rejects_wrong_target_leakage_and_zeroes_objective():
     report = _valid_report()
     report["scores"]["wrong_target_or_unsafe_leakage"] = 1.0
-    report["scores"]["J_B_val"] = compute_recommended_j_b_val(report["scores"])
+    report["scores"]["J_val"] = compute_recommended_j_val(report["scores"])
 
     errors = validate_pacer_bo_eval_report(report)
 
-    assert report["scores"]["J_B_val"] == 0.0
+    assert report["scores"]["J_val"] == 0.0
     assert "wrong_target_or_unsafe_leakage_must_be_zero" in errors
 
 
-def test_eval_contract_requires_val_split_j_b_val_and_safety_gate():
+def test_eval_contract_requires_val_split_j_val_and_safety_gate():
     report = _valid_report()
     report["split"] = "heldout"
-    del report["scores"]["J_B_val"]
+    del report["scores"]["J_val"]
     report["safety_gates"]["passed"] = False
     errors = validate_pacer_bo_eval_report(report)
     assert "split_must_be_val" in errors
-    assert "missing_score:J_B_val" in errors
+    assert "missing_score:J_val" in errors
     assert "safety_gates_passed_must_be_true_for_bo_selection" in errors

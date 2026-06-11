@@ -85,7 +85,7 @@ For full GitHub-style onboarding, including optional robot/VLA packages, read
 `docs/ADAPTER_HOOKS.md`. If your robot/simulator streams logs from another
 process, use `docs/ZMQ_COLLECTION.md` and the optional
 `python -m pacer_framework.collect_zmq` receiver. For the concrete terminal
-layout and the SEA-VLA reference collection/inference scripts, read
+layout and the reference collection/inference scripts, read
 `docs/TELEOP_COLLECTION_INFERENCE.md`.
 
 `examples/end_to_end_demo.py` walks steps 1–7 on an imaginary arm with two

@@ -6,6 +6,7 @@ import numpy as np
 from pacer.weighting.pacer_bo import (
     BayesianOptimizationResult,
     NoCandidateProposalsError,
+    PacerBoObservation,
     expected_improvement,
     fit_gp_surrogate,
     load_bo_observations,
@@ -13,7 +14,7 @@ from pacer.weighting.pacer_bo import (
     write_bo_proposal_artifacts,
 )
 from pacer.weighting.pacer_bo_weights import PacerEta
-from pacer.weighting.pacer_eval_contract import compute_recommended_j_b_val
+from pacer.weighting.pacer_eval_contract import compute_recommended_j_val
 
 
 def _score_report(j: float) -> dict:
@@ -33,9 +34,9 @@ def _score_report(j: float) -> dict:
         "stop_token_timing_score": j,
         "approach_axis_alignment": j,
         "approach_lateral_drift_score": j,
-        "J_B_val": 0.0,
+        "J_val": 0.0,
     }
-    scores["J_B_val"] = compute_recommended_j_b_val(scores)
+    scores["J_val"] = compute_recommended_j_val(scores)
     return {
         "schema": "pacer_bo_eval_scores.v0.1",
         "split": "val",
@@ -45,7 +46,7 @@ def _score_report(j: float) -> dict:
         "metric_authority": {
             "external_semantic_scalar_authority_used": False,
             "external_semantic_action_authority_used": False,
-            "direction_metric_for_J_B_val": "tcp_direction_cosine",
+            "direction_metric_for_J_val": "tcp_direction_cosine",
             "action_vector_direction_is_diagnostic_only": True,
             "coordinate_convention": "unit_test",
         },
@@ -70,7 +71,33 @@ def test_load_bo_observations_pairs_eta_configs_with_valid_scores(tmp_path: Path
     assert observations[0].score_path == score_path
     assert observations[0].eta.free_vector()["progress"] == 0.55
     assert 0.0 <= observations[0].x_normalized[0] <= 1.0
-    assert observations[0].j_b_val == _score_report(0.73)["scores"]["J_B_val"]
+    assert observations[0].j_val == _score_report(0.73)["scores"]["J_val"]
+
+
+def test_load_bo_observations_accepts_legacy_j_b_val_scores(tmp_path: Path):
+    root = tmp_path / "obs"
+    candidate = root / "eta_progress_heavy"
+    candidate.mkdir(parents=True)
+    eta = PacerEta(progress=0.55, proximity=0.20, terminal=0.15, stop=0.05)
+    (candidate / "eta_config.json").write_text(json.dumps(eta.to_dict()))
+    report = _score_report(0.73)
+    report["scores"]["J_B_val"] = report["scores"].pop("J_val")
+    report["metric_authority"]["direction_metric_for_J_B_val"] = report["metric_authority"].pop("direction_metric_for_J_val")
+    score_path = candidate / "validation" / "scores.json"
+    score_path.parent.mkdir()
+    score_path.write_text(json.dumps(report))
+
+    observations = load_bo_observations(root)
+
+    assert len(observations) == 1
+    assert observations[0].j_val == report["scores"]["J_B_val"]
+
+
+def test_pacer_bo_observation_accepts_legacy_j_b_val_constructor():
+    obs = PacerBoObservation(eta_id="legacy", eta=PacerEta(), j_b_val=0.42)
+
+    assert obs.j_val == 0.42
+    assert obs.j_b_val == 0.42
 
 
 def test_gp_surrogate_predicts_mean_and_positive_uncertainty():

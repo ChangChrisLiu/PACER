@@ -26,7 +26,7 @@ ABLATION_WEIGHT_MODES = frozenset(
         "uniform_replay",
         "correction_only",
         "outcome_only",
-        "fixed_rw_fma",
+        "fixed_geometry",
         "random_weight",
         "pacer_eta",
     }
@@ -204,7 +204,7 @@ def _chunk_local_evidence_components(row: Mapping[str, Any]) -> dict[str, float]
     """Derive PACER evidence directly from per-chunk trajectory geometry.
 
     Human correction/demo anchors can carry useful `chunk_local_to_active_target`
-    evidence even when the older AW-FMA return block used a constant human anchor.
+    evidence even when the older fixed geometry return block used a constant human anchor.
     PACER should rank those correction chunks by measured progress/proximity rather
     than giving every correction in the same stratum an identical score.
     """
@@ -252,7 +252,7 @@ def evidence_components(row: Mapping[str, Any]) -> dict[str, float]:
 
     # Human correction rows should be internally ranked by measured trajectory
     # evidence when available. Older compiler views store human anchors with
-    # constant/null AW-FMA components; using those constants would make all
+    # constant/null fixed geometry components; using those constants would make all
     # corrections receive identical PACER scores regardless of recovery quality.
     role = str(row.get("sample_role", ""))
     has_anchor_override = isinstance(comps, Mapping) and comps.get("anchor_override") is not None
@@ -262,7 +262,7 @@ def evidence_components(row: Mapping[str, Any]) -> dict[str, float]:
     if chunk_evidence is not None and role in {"human_correction", "clean_demo"} and (has_anchor_override or missing_normalized_aw):
         return chunk_evidence
 
-    # Existing AW-FMA fields are already normalized to useful ranges. Fall back
+    # Existing fixed geometry fields are already normalized to useful ranges. Fall back
     # to per-chunk geometry when the compiler did not emit normalized fields,
     # then to legacy route/terminal proxies.
     progress_default = chunk_evidence["progress"] if chunk_evidence is not None else as_float(nested_get(row, "reward.route_reward_components.progress_signed01"), 0.5)
@@ -438,13 +438,13 @@ def raw_score(row: Mapping[str, Any], eta: PacerEta) -> float:
     """Process score s_eta(i) = sum_k beta_k * e_k(i) over the paper evidence vector.
 
     Coefficients are the raw declared beta values (no unit-sum renormalization),
-    matching the paper's process-score definition. The role multiplier is applied
-    here so role-stratified centering sees the role-adjusted score.
+    matching the paper's process-score definition. Role multipliers are applied
+    in the final row-weight equation, outside the centered exponential.
     """
     weights = eta.components()
     comps = evidence_components(row)
     base = sum(weights[k] * comps[k] for k in weights)
-    return max(0.0, min(1.0, base * role_multiplier(row, eta)))
+    return max(0.0, min(1.0, base))
 
 
 def stratum_key(row: Mapping[str, Any]) -> str:
@@ -457,13 +457,7 @@ def _robust_stats(values: list[float]) -> tuple[float, float]:
     med = median(values)
     absdev = [abs(v - med) for v in values]
     mad = median(absdev) if absdev else 0.0
-    scale = 1.4826 * mad
-    if scale < 1e-6:
-        # Fallback to standard deviation-like scale.
-        mean = sum(values) / len(values)
-        var = sum((v - mean) ** 2 for v in values) / max(1, len(values))
-        scale = math.sqrt(var) or 1.0
-    return med, max(scale, 1e-6)
+    return med, max(1.4826 * mad, 1e-6)
 
 
 def compute_pacer_weights(rows: list[dict[str, Any]], eta: PacerEta, *, eta_id: str | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -493,13 +487,28 @@ def compute_pacer_weights(rows: list[dict[str, Any]], eta: PacerEta, *, eta_id: 
         advantage = score - center
         norm_adv = advantage / scale
         if ok:
-            unclipped = math.exp(norm_adv / max(eta.tau, 1e-6))
-            clipped = max(eta.w_min, min(eta.w_max, unclipped))
             role = row.get("sample_role")
+            role_mult = role_multiplier(row, eta)
+            exponent_arg = norm_adv / max(eta.tau, 1e-6)
+            if role_mult <= 0.0:
+                unclipped = 0.0
+            elif exponent_arg <= -745.0:
+                unclipped = 0.0
+            else:
+                # Saturate before math.exp overflows. Since the next operation
+                # clips to w_max, any exponent large enough to exceed w_max is
+                # equivalent to eta.w_max for training and keeps audit JSON finite.
+                max_needed = max(eta.w_max, eta.w_min, eta.clean_demo_floor, eta.human_correction_floor, 1e-12)
+                max_exp_arg = math.log(max_needed / max(role_mult, 1e-12))
+                if exponent_arg >= max_exp_arg:
+                    unclipped = max_needed
+                else:
+                    unclipped = role_mult * math.exp(exponent_arg)
             if role == "clean_demo":
-                clipped = max(clipped, eta.clean_demo_floor)
+                unclipped = max(unclipped, eta.clean_demo_floor)
             elif role == "human_correction":
-                clipped = max(clipped, eta.human_correction_floor)
+                unclipped = max(unclipped, eta.human_correction_floor)
+            clipped = max(eta.w_min, min(eta.w_max, unclipped))
             weight = float(clipped)
         else:
             unclipped = 0.0
@@ -601,10 +610,10 @@ def _mode_weight(row: Mapping[str, Any], mode: str, *, random_seed: int) -> tupl
         if role not in {"clean_demo", "model_success"}:
             return 0.0, None, [f"mode_excludes_role:{role}"]
         return 1.0, "constant_success_or_demo", []
-    if mode == "fixed_rw_fma":
+    if mode == "fixed_geometry":
         weight = as_float(nested_get(row, "returns.rank_weight_unvalidated"), 0.0)
         if weight <= 0:
-            return 0.0, "returns.rank_weight_unvalidated", ["non_positive_fixed_rw_fma_weight"]
+            return 0.0, "returns.rank_weight_unvalidated", ["non_positive_fixed_geometry_weight"]
         return weight, "returns.rank_weight_unvalidated", []
     if mode == "random_weight":
         return _stable_random_weight(row, random_seed), "stable_row_hash", []

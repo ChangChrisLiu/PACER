@@ -1,7 +1,7 @@
 """Bayesian optimization helpers for PACER eta search.
 
 This module turns the existing PACER structured eta pool into an explicit
-Bayesian-optimization loop: observed (eta, J_B_val) pairs are mapped to the
+Bayesian-optimization loop: observed (eta, J_val) pairs are mapped to the
 normalized 8D :class:`PacerEta` search space, a Gaussian-process surrogate is
 fit, and Expected Improvement proposes the next eta candidates.
 
@@ -32,14 +32,41 @@ class NoCandidateProposalsError(RuntimeError):
     """Raised when acquisition search has no candidates after filtering."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class PacerBoObservation:
     eta_id: str
     eta: PacerEta
-    j_b_val: float
+    j_val: float
     score_path: Path | None = None
     eta_config_path: Path | None = None
     training_run_id: str | None = None
+
+    def __init__(
+        self,
+        *,
+        eta_id: str,
+        eta: PacerEta,
+        j_val: float | None = None,
+        j_b_val: float | None = None,
+        score_path: Path | None = None,
+        eta_config_path: Path | None = None,
+        training_run_id: str | None = None,
+    ) -> None:
+        if j_val is None:
+            j_val = j_b_val
+        if j_val is None:
+            raise TypeError("PacerBoObservation requires j_val or legacy j_b_val")
+        object.__setattr__(self, "eta_id", eta_id)
+        object.__setattr__(self, "eta", eta)
+        object.__setattr__(self, "j_val", float(j_val))
+        object.__setattr__(self, "score_path", score_path)
+        object.__setattr__(self, "eta_config_path", eta_config_path)
+        object.__setattr__(self, "training_run_id", training_run_id)
+
+    @property
+    def j_b_val(self) -> float:
+        """Backward-compatible alias for older local callers; prefer j_val."""
+        return self.j_val
 
     @property
     def x_normalized(self) -> list[float]:
@@ -95,7 +122,7 @@ def _coerce_observations(observations: Iterable[PacerBoObservation | tuple[Pacer
             out.append(item)
             continue
         eta, score = item
-        out.append(PacerBoObservation(eta_id=f"obs_{idx:03d}", eta=eta, j_b_val=float(score)))
+        out.append(PacerBoObservation(eta_id=f"obs_{idx:03d}", eta=eta, j_val=float(score)))
     return out
 
 
@@ -131,9 +158,11 @@ def _load_score(score_path: Path) -> tuple[float, str | None]:
     errors = validate_pacer_bo_eval_report(report)
     if errors:
         raise ValueError(f"invalid PACER score report {score_path}: {errors}")
-    score = report.get("scores", {}).get("J_B_val")
+    score = report.get("scores", {}).get("J_val")
+    if score is None:
+        score = report.get("scores", {}).get("J_B_val")
     if not isinstance(score, (int, float)) or not math.isfinite(float(score)):
-        raise ValueError(f"missing finite scores.J_B_val in {score_path}")
+        raise ValueError(f"missing finite scores.J_val in {score_path}")
     candidate = report.get("candidate") if isinstance(report.get("candidate"), dict) else {}
     return float(score), candidate.get("training_run_id")
 
@@ -165,12 +194,12 @@ def load_bo_observations(root: str | Path, *, include_non_eta: bool = False) -> 
             if include_non_eta:
                 continue
             continue
-        j_b_val, training_run_id = _load_score(score_path)
+        j_val, training_run_id = _load_score(score_path)
         observations.append(
             PacerBoObservation(
                 eta_id=eta_id,
                 eta=eta,
-                j_b_val=j_b_val,
+                j_val=j_val,
                 score_path=score_path,
                 eta_config_path=eta_config_path,
                 training_run_id=training_run_id,
@@ -189,7 +218,7 @@ def fit_gp_surrogate(
     if len(obs) < 2:
         raise ValueError("Need at least two eta observations to fit a BO surrogate")
     x = np.asarray([o.x_normalized for o in obs], dtype=np.float64)
-    y = np.asarray([o.j_b_val for o in obs], dtype=np.float64)
+    y = np.asarray([o.j_val for o in obs], dtype=np.float64)
     kernel = ConstantKernel(1.0, (1e-3, 1e3)) * Matern(
         length_scale=np.ones(x.shape[1]),
         length_scale_bounds=(1e-2, 1e2),
@@ -246,7 +275,7 @@ def propose_next_etas(
     obs = _coerce_observations(observations)
     surrogate = fit_gp_surrogate(obs, random_state=random_state)
     observed_x = np.asarray([o.x_normalized for o in obs], dtype=np.float64)
-    y_best = max(o.j_b_val for o in obs)
+    y_best = max(o.j_val for o in obs)
     candidates = _candidate_pool(random_state=random_state, n_search_samples=n_search_samples)
     if observed_x.size:
         distances = np.linalg.norm(candidates[:, None, :] - observed_x[None, :, :], axis=2).min(axis=1)
@@ -352,7 +381,7 @@ def write_bo_proposal_artifacts(result: BayesianOptimizationResult, output_dir: 
                 "eta_hash": o.eta.eta_hash(),
                 "eta": o.eta.to_dict(),
                 "normalized_vector": o.x_normalized,
-                "J_B_val": o.j_b_val,
+                "J_val": o.j_val,
                 "score_path": str(o.score_path) if o.score_path else None,
                 "eta_config_path": str(o.eta_config_path) if o.eta_config_path else None,
                 "training_run_id": o.training_run_id,
@@ -361,7 +390,7 @@ def write_bo_proposal_artifacts(result: BayesianOptimizationResult, output_dir: 
         ],
         "proposals": proposal_items,
         "notes": [
-            "GP+EI is used to propose next PACER eta candidates from full-val J_B_val observations.",
+            "GP+EI is used to propose next PACER eta candidates from full-val J_val observations.",
             "Heldout split must remain untouched until final selected-candidate reporting.",
             "With few initial observations, proposals should be presented as BO-guided candidates, not a converged optimum.",
         ],

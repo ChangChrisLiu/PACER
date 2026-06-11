@@ -1,6 +1,6 @@
 """End-to-end journey of a generic robot/VLA user, from standard records to
 weighted training views, candidate evaluation, selection, baselines, and the
-paper-style comparison tables. No SEA-VLA specifics anywhere: the robot is
+paper-style comparison tables. No lab-specific robot details anywhere: the robot is
 "anybot" with two task targets ("widget", "socket")."""
 import json
 

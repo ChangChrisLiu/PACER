@@ -13,6 +13,7 @@ from pacer.weighting.pacer_bo_weights import (
     hard_gate,
     raw_score,
     target_match,
+    _robust_stats,
 )
 
 
@@ -218,6 +219,59 @@ def test_pacer_weight_uses_raw_beta_coefficients_not_unit_normalized():
     assert raw_score(row, eta) == 0.45
 
 
+def test_pacer_weight_applies_role_multiplier_outside_centered_exponential():
+    rows = []
+    for idx, progress in enumerate((0.0, 0.5, 1.0)):
+        row = _row(role="model_partial")
+        row["row_id"] = f"partial_{idx}"
+        row["returns"]["aw_fma_reward_components"].update(
+            {
+                "r_progress_signed01": progress,
+                "r_proximity": 0.0,
+                "r_terminal": 0.0,
+                "r_stop_handoff": 0.0,
+                "r_operator_rank": 0.0,
+            }
+        )
+        rows.append(row)
+
+    out, _manifest = compute_pacer_weights(rows, PacerEta(), eta_id="unit")
+    by_id = {row["row_id"]: row for row in out}
+
+    assert by_id["partial_1"]["returns"]["pacer_weight"] == PacerEta().partial_multiplier
+
+
+def test_runtime_robust_stats_use_mad_floor_without_standard_deviation_fallback():
+    center, scale = _robust_stats([0.5, 0.5, 0.9])
+
+    assert center == 0.5
+    assert scale == 1e-6
+
+
+def test_pacer_weight_saturates_large_advantage_instead_of_overflowing():
+    rows = []
+    for idx, progress in enumerate((0.5, 0.5, 0.9)):
+        row = _row(role="model_success")
+        row["row_id"] = f"outlier_{idx}"
+        row["returns"]["aw_fma_reward_components"].update(
+            {
+                "r_progress_signed01": progress,
+                "r_proximity": 0.0,
+                "r_terminal": 0.0,
+                "r_stop_handoff": 0.0,
+                "r_operator_rank": 0.0,
+            }
+        )
+        rows.append(row)
+
+    eta = PacerEta(progress=1.0, proximity=0.0, terminal=0.0, stop=0.0, operator=0.0, w_max=3.0)
+    out, _manifest = compute_pacer_weights(rows, eta, eta_id="unit")
+    by_id = {row["row_id"]: row for row in out}
+
+    assert by_id["outlier_2"]["returns"]["pacer_weight"] == 3.0
+    assert by_id["outlier_2"]["returns"]["pacer_weight_unclipped"] == 3.0
+
+
 def test_freeze_config_splits_falls_back_to_trial_groups_when_single_config():
     rows = []
     for trial_idx in range(5):
@@ -287,7 +341,7 @@ def test_ablation_modes_select_expected_training_rows():
         "uniform_replay": {"clean_demo", "human_correction", "model_partial", "model_success"},
         "correction_only": {"human_correction"},
         "outcome_only": {"clean_demo", "model_success"},
-        "fixed_rw_fma": {"clean_demo", "human_correction", "model_partial", "model_success"},
+        "fixed_geometry": {"clean_demo", "human_correction", "model_partial", "model_success"},
         "random_weight": {"clean_demo", "human_correction", "model_partial", "model_success"},
         "pacer_eta": {"clean_demo", "human_correction", "model_partial", "model_success"},
     }
@@ -309,10 +363,10 @@ def test_ablation_modes_never_assign_positive_weight_to_excluded_rows():
         assert manifest["safety_leakage"] == {}
 
 
-def test_fixed_rw_fma_and_random_ablation_weights_are_auditable():
+def test_fixed_geometry_and_random_ablation_weights_are_auditable():
     rows = [_row(role="clean_demo"), _row(role="human_correction"), _row(role="model_partial")]
 
-    fixed, fixed_manifest = compute_ablation_weights(rows, mode="fixed_rw_fma")
+    fixed, fixed_manifest = compute_ablation_weights(rows, mode="fixed_geometry")
     by_role = {r["sample_role"]: r for r in fixed}
     assert by_role["clean_demo"]["returns"]["loss_weight"] == 1.0
     assert by_role["human_correction"]["returns"]["loss_weight"] == 1.5

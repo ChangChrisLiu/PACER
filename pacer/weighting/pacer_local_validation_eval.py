@@ -1,10 +1,10 @@
 """Local PACER validation-score adapter for offline checkpoint alignment smokes.
 
 This module does not run robot hardware and does not claim real success. It takes
-a deterministic offline alignment evaluation, such as the legacy 8499 checkpoint
+a deterministic offline alignment evaluation, such as the offline example checkpoint
 clean-demo alignment JSON, and maps it into the PACER `validation/scores.json`
-contract so the metric matrix, J_B_val computation, authority fields, and safety
-gates can be verified locally before HPRC.
+contract so the metric matrix, J_val computation, authority fields, and safety
+gates can be verified locally before cluster.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from typing import Any, Iterable, Mapping
 
 from pacer.weighting.pacer_eval_contract import (
     PACER_BO_EVAL_SCHEMA_VERSION,
-    compute_recommended_j_b_val,
+    compute_recommended_j_val,
     validate_pacer_bo_eval_report,
 )
 
@@ -80,7 +80,7 @@ def build_pacer_scores_from_alignment_eval(
 ) -> dict[str, Any]:
     """Build a contract-valid PACER scores report from offline alignment JSON.
 
-    The 8499 alignment file reports joint/action-chunk agreement against initial
+    The example alignment file reports joint/action-chunk agreement against initial
     SFT and PACER clean-demo rows. These are not full robot validation metrics,
     so unsupported quantities are filled conservatively from available alignment,
     stop/gripper telemetry, and safety defaults. The report is marked as a local
@@ -138,9 +138,9 @@ def build_pacer_scores_from_alignment_eval(
         "stop_token_timing_score": stop_token_timing_score,
         "approach_axis_alignment": approach_axis_alignment,
         "approach_lateral_drift_score": approach_lateral_drift_score,
-        "J_B_val": 0.0,
+        "J_val": 0.0,
     }
-    scores["J_B_val"] = compute_recommended_j_b_val(scores)
+    scores["J_val"] = compute_recommended_j_val(scores)
 
     report = {
         "schema": PACER_BO_EVAL_SCHEMA_VERSION,
@@ -161,9 +161,9 @@ def build_pacer_scores_from_alignment_eval(
         "metric_authority": {
             "external_semantic_scalar_authority_used": False,
             "external_semantic_action_authority_used": False,
-            "direction_metric_for_J_B_val": "tcp_direction_cosine",
+            "direction_metric_for_J_val": "tcp_direction_cosine",
             "action_vector_direction_is_diagnostic_only": True,
-            "coordinate_convention": "offline_joint_delta_alignment_from_8499_smoke_not_robot_tcp_success",
+            "coordinate_convention": "offline_joint_delta_alignment_smoke_not_robot_tcp_success",
         },
         "safety_gates": {
             "passed": wrong_target_or_unsafe_leakage == 0.0,
@@ -171,10 +171,10 @@ def build_pacer_scores_from_alignment_eval(
             "forbidden_positive_weight_rows": 0,
             "heldout_loss_eligible_rows": 0,
         },
-        "evaluation_scope": "local_offline_8499_alignment_smoke_not_hardware_success",
+        "evaluation_scope": "local_offline_alignment_smoke_not_hardware_success",
         "notes": [
-            "This verifies the PACER validation matrix and J_B_val contract locally.",
-            "It is not a substitute for the real HPRC evaluator over frozen validation states.",
+            "This verifies the PACER validation matrix and J_val contract locally.",
+            "It is not a substitute for the real fixed validation evaluator over frozen validation states.",
         ],
     }
     errors = validate_pacer_bo_eval_report(report)

@@ -1,8 +1,8 @@
-"""Read-only PACER action-chunk compiler for offline RW-FMA.
+"""Read-only PACER action-chunk compiler for offline fixed-geometry.
 
 This module is deliberately conservative.  It compiles *candidate* policy
 training rows from saved PACER rollout episodes, but it does not train, merge,
-or command hardware.  The first supported target is Pi0.5/OpenPI RW-FMA:
+or command hardware.  The first supported target is Pi0.5/OpenPI fixed-geometry:
 nonnegative return/rank-weighted native flow-matching over aligned 10-step,
 external 7-D action chunks.
 
@@ -782,7 +782,7 @@ def _human_segment_chunk_rows(
                 **aw_returns,
             },
             "eligibility": {
-                "usable_for_rw_fma_dry_run": weight > 0,
+                "usable_for_fixed_geometry_dry_run": weight > 0,
                 "quarantined": quarantined,
                 "quarantine_reasons": quarantine_reasons,
             },
@@ -861,7 +861,7 @@ def _score_reward_components(auto_score: Mapping[str, Any], label: str | None, r
 def _route_reward_components(chunk_local: Mapping[str, Any], sample_role: str) -> dict[str, Any]:
     """Compute the v3 privileged route/progress reward components.
 
-    This is an offline compiler-side scalar used only for nonnegative RW-FMA
+    This is an offline compiler-side scalar used only for nonnegative fixed-geometry
     weighting/audit. It is not VLM authority and not a PPO reward model.
     Human teacher rows are not multiplied by this score, but we still emit the
     audit block so downstream analysis can stratify demos/corrections.
@@ -953,7 +953,7 @@ def _aw_fma_reward_components(
     rank: int | None,
     label: str | None,
 ) -> dict[str, Any]:
-    """Compute AW-FMA reward: distance/progress-dominant with safety/role/quarantine gates."""
+    """Compute fixed geometry reward: distance/progress-dominant with safety/role/quarantine gates."""
     safety_gate = not any("safety" in r or "clamped" in r for r in quarantine_reasons)
     role_gate = sample_role in {"clean_demo", "human_correction", "model_success", "model_partial", "model_failure"}
     quarantine_gate = not quarantined
@@ -1043,7 +1043,7 @@ def _aw_fma_returns_block(
     quarantine_reasons: Sequence[str],
     stratum_key: str,
 ) -> dict[str, Any]:
-    """Build the full AW-FMA returns sub-block for a single chunk row."""
+    """Build the full fixed geometry returns sub-block for a single chunk row."""
     aw_reward = float(reward_info.get("aw_fma_reward") or 0.0)
     safety_gate = bool(reward_info.get("safety_gate"))
     role_gate = bool(reward_info.get("role_gate"))
@@ -1176,7 +1176,7 @@ def finalize_aw_fma_dataset(
     weight_clip: float = 3.0,
     max_weight: float = 20.0,
 ) -> dict[str, Any]:
-    """Dataset-level AW-FMA finalization: splits → baselines → weights → loss gating."""
+    """Dataset-level fixed geometry finalization: splits → baselines → weights → loss gating."""
     config_splits: dict[str, str] = {}
     if not fit_baselines:
         for row in chunks:
@@ -1486,7 +1486,7 @@ def compile_episode_action_chunks(ep: Path, *, repo_root: Path | None = None) ->
                 **aw_returns,
             },
             "eligibility": {
-                "usable_for_rw_fma_dry_run": weight > 0,
+                "usable_for_fixed_geometry_dry_run": weight > 0,
                 "quarantined": quarantined,
                 "quarantine_reasons": quarantine_reasons,
                 "clip_l2_max": round(float(clip_l2), 9),
@@ -1630,17 +1630,17 @@ def validate_action_chunk_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, A
             errors.append(f"model_failure_positive_weight:{rid}")
     if not rows:
         warnings.append("no_action_chunk_rows")
-    usable = sum(bool(r.get("eligibility", {}).get("usable_for_rw_fma_dry_run")) for r in rows)
+    usable = sum(bool(r.get("eligibility", {}).get("usable_for_fixed_geometry_dry_run")) for r in rows)
     if rows and usable == 0:
-        warnings.append("no_usable_rw_fma_rows")
-    return {"ok": not errors, "errors": errors, "warnings": warnings, "n_rows": len(rows), "n_usable_rw_fma_dry_run": usable}
+        warnings.append("no_usable_fixed_geometry_rows")
+    return {"ok": not errors, "errors": errors, "warnings": warnings, "n_rows": len(rows), "n_usable_fixed_geometry_dry_run": usable}
 
 
 def _build_aw_fma_report(
     chunks: Sequence[Mapping[str, Any]],
     aw_fma_options: Any | None,
 ) -> dict[str, Any]:
-    """Build the AW-FMA sub-report for validation_report.json."""
+    """Build the fixed geometry sub-report for validation_report.json."""
 
     def _dist(values: Sequence[float]) -> dict[str, float | int | None]:
         if not values:
@@ -1825,12 +1825,12 @@ def build_report(
 
     report = {
         "schema": ACTION_CHUNK_SCHEMA_VERSION,
-        "recommendation": "READY_FOR_SMALL_RW_FMA_DRY_RUN" if validation.get("ok") and validation.get("n_usable_rw_fma_dry_run", 0) > 0 else "NOT_READY_FOR_TRAINING",
+        "recommendation": "READY_FOR_SMALL_FIXED_GEOMETRY_DRY_RUN" if validation.get("ok") and validation.get("n_usable_fixed_geometry_dry_run", 0) > 0 else "NOT_READY_FOR_TRAINING",
         "counts": {
             "trials": len(trials),
             "segments": len(segments),
             "action_chunks": len(chunks),
-            "usable_for_rw_fma_dry_run": validation.get("n_usable_rw_fma_dry_run", 0),
+            "usable_for_fixed_geometry_dry_run": validation.get("n_usable_fixed_geometry_dry_run", 0),
             "compile_failures": len(failures),
         },
         "histograms": {
@@ -1842,7 +1842,7 @@ def build_report(
             "chunk_phase": hist("phase", chunks),
             "chunk_control_source": hist("control_source", chunks),
         },
-        "rw_fma_weight_distribution": {
+        "fixed_geometry_weight_distribution": {
             "n_positive": len(positive_weights),
             "unique_values_count": len(set(round(w, 6) for w in positive_weights)),
             **_percentiles(positive_weights),
@@ -1882,7 +1882,7 @@ def write_dataset(result: CompileResult, output_dir: Path, *, force: bool = Fals
         "segment_schema": SEGMENT_SCHEMA_VERSION,
         "expected_horizon": EXPECTED_HORIZON,
         "expected_external_action_dim": EXPECTED_ACTION_DIM,
-        "method": "JAX/OpenPI RW-FMA dry-run candidate dataset",
+        "method": "JAX/OpenPI fixed-geometry dry-run candidate dataset",
     }, indent=2, sort_keys=True))
     (output_dir / "validation_report.json").write_text(json.dumps(result.report, indent=2, sort_keys=True))
     (output_dir / "README.md").write_text(_readme(result.report))
@@ -1919,7 +1919,7 @@ def _write_aw_fma_sidecars(result: CompileResult, output_dir: Path) -> None:
     rec = aw_fma_report.get("recommendation", "AW_FMA_AUDIT_ONLY")
 
     manifest = {
-        "method": "AW-FMA candidate artifact",
+        "method": "fixed geometry candidate artifact",
         "training_launch_authorized": False,
         "action_chunk_schema": ACTION_CHUNK_SCHEMA_VERSION,
         "aw_fma_reward_version": AW_FMA_REWARD_VERSION,
@@ -1950,7 +1950,7 @@ def _write_aw_fma_sidecars(result: CompileResult, output_dir: Path) -> None:
         },
         "violation_counts": aw_fma_report.get("violation_counts", {}),
         "recommendation": rec,
-        "rw_fma_action_chunks_sha256": "sha256:" + rw_sha.hexdigest(),
+        "fixed_geometry_action_chunks_sha256": "sha256:" + rw_sha.hexdigest(),
         "aw_fma_action_chunks_sha256": "sha256:" + chunks_sha.hexdigest(),
     }
     (aw_dir / "aw_fma_manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
@@ -1978,7 +1978,7 @@ def _readme(report: Mapping[str, Any]) -> str:
 Schema: `{ACTION_CHUNK_SCHEMA_VERSION}`
 
 This directory is a read-only offline compiler product for PACER PACER
-Pi0.5/OpenPI RW-FMA preparation. It is not a training run and does not authorize
+Pi0.5/OpenPI fixed-geometry preparation. It is not a training run and does not authorize
 live robot control.
 
 Counts:
@@ -1986,7 +1986,7 @@ Counts:
 - trials: {counts.get('trials')}
 - segments: {counts.get('segments')}
 - action chunks: {counts.get('action_chunks')}
-- usable for RW-FMA dry run: {counts.get('usable_for_rw_fma_dry_run')}
+- usable for fixed-geometry dry run: {counts.get('usable_for_fixed_geometry_dry_run')}
 - compile failures: {counts.get('compile_failures')}
 
 Files to review in order:
