@@ -47,6 +47,16 @@ GEOMETRIC_SUBMETRICS = ("progress", "proximity", "terminal", "direction")
 
 BLOCKER_FLAGS = ("wrong_target", "non_target_exclusion", "invalid_orientation", "unsafe")
 WRONG_TARGET_REASONS = frozenset({"wrong_target", "non_target_exclusion", "invalid_orientation"})
+VALIDATION_SUBMETRICS = (
+    "progress",
+    "proximity",
+    "terminal",
+    "direction",
+    "stop",
+    "align",
+    "no_regression",
+)
+SUBMETRIC_ALIASES = {"reg": "no_regression"}
 
 
 @dataclass(frozen=True)
@@ -75,10 +85,25 @@ def blocker(row: Mapping[str, Any]) -> tuple[bool, tuple[str, ...]]:
     return len(reasons) == 0, reasons
 
 
+def _canonical_submetrics(submetrics: Mapping[str, Any]) -> dict[str, Any]:
+    """Return paper-canonical validation submetric names.
+
+    The paper writes the no-regression term as e_reg, while the code/reporting
+    name is `no_regression`. Accept the paper alias but keep one canonical key
+    so weights, manifests, and used_submetrics cannot silently diverge.
+    """
+    out: dict[str, Any] = {}
+    for key, value in submetrics.items():
+        canonical = SUBMETRIC_ALIASES.get(str(key), str(key))
+        out[canonical] = value
+    return out
+
+
 def _weighted_mean(
     submetrics: Mapping[str, Any],
     weights: Mapping[str, float],
 ) -> tuple[float, tuple[str, ...]]:
+    submetrics = _canonical_submetrics(submetrics)
     numerator = 0.0
     denominator = 0.0
     used: list[str] = []

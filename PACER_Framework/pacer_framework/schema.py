@@ -25,7 +25,7 @@ from typing import Any, Mapping
 from pacer_framework.eta import EVIDENCE_KEYS
 from pacer_framework.evidence import PROVENANCE_FLAGS, target_consistency
 from pacer_framework.roles import normalize_role
-from pacer_framework.validation import BLOCKER_FLAGS
+from pacer_framework.validation import BLOCKER_FLAGS, SUBMETRIC_ALIASES, VALIDATION_SUBMETRICS
 
 SPLITS = ("train", "val", "heldout")
 
@@ -144,8 +144,16 @@ def training_row_warnings(row: Mapping[str, Any]) -> list[str]:
     return warnings
 
 
-def validate_validation_row(row: Mapping[str, Any]) -> list[str]:
-    """Return contract violations for a validation-scoring row."""
+def validate_validation_row(row: Mapping[str, Any], *, strict_paper: bool = False) -> list[str]:
+    """Return contract violations for a validation-scoring row.
+
+    In default mode this checks that any supplied values are well-formed. In
+    ``strict_paper`` mode it also requires every audit/blocker dimension to be
+    explicitly present and requires the paper-critical `align` and
+    no-regression (`no_regression`, alias `reg`) validation submetrics. Use
+    strict mode before reporting a result as paper-framework `J_val` rather
+    than as a reduced diagnostic.
+    """
     errors: list[str] = []
     if not isinstance(row, Mapping):
         return ["row must be a mapping"]
@@ -157,12 +165,26 @@ def validate_validation_row(row: Mapping[str, Any]) -> list[str]:
     if not isinstance(submetrics, Mapping) or len(submetrics) == 0:
         errors.append("submetrics must be a non-empty mapping of bounded metric values")
     else:
+        allowed = set(VALIDATION_SUBMETRICS) | set(SUBMETRIC_ALIASES)
+        canonical_keys = {SUBMETRIC_ALIASES.get(str(k), str(k)) for k in submetrics}
         for key, value in submetrics.items():
+            canonical = SUBMETRIC_ALIASES.get(str(key), str(key))
+            if str(key) not in allowed and canonical not in VALIDATION_SUBMETRICS:
+                errors.append(
+                    f"unknown validation submetric {key!r}; allowed: {list(VALIDATION_SUBMETRICS)} plus aliases {SUBMETRIC_ALIASES}"
+                )
+                continue
             if not _is_number(value) or not 0.0 <= float(value) <= 1.0:
                 errors.append(f"submetrics[{key!r}] must be a number in [0, 1], got {value!r}")
+        if strict_paper:
+            for required in ("align", "no_regression"):
+                if required not in canonical_keys:
+                    errors.append(f"strict paper validation row requires submetric '{required}'")
     for flag in BLOCKER_FLAGS:
         if flag in row and not isinstance(row[flag], bool):
             errors.append(f"blocker flag {flag!r} must be boolean")
+        if strict_paper and flag not in row:
+            errors.append(f"missing blocker flag '{flag}' for strict paper validation")
     return errors
 
 

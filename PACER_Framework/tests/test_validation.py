@@ -39,6 +39,13 @@ def test_row_score_renormalizes_over_applicable_submetrics():
     assert {"stop", "align", "no_regression"} <= set(score_full.used_submetrics)
 
 
+def test_row_score_accepts_paper_reg_alias_for_no_regression():
+    row = val_row(submetrics={"progress": 0.0, "reg": 1.0})
+    score = row_score(row, submetric_weights={"progress": 1.0, "no_regression": 1.0})
+    assert score.score == pytest.approx(0.5, abs=1e-6)
+    assert set(score.used_submetrics) == {"progress", "no_regression"}
+
+
 def test_blocker_flags_zero_rows_but_terminal_failure_does_not():
     ok = row_score(val_row())
     assert ok.score > 0.0 and ok.blocker_passed

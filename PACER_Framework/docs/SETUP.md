@@ -33,8 +33,8 @@ different. Instead, it gives you a stable data contract and adapter hooks.
 ## 1. Clone and install the core
 
 ```bash
-git clone git@github.com:ChangChrisLiu/PACER.git   # or your fork / mirror URL
-cd PACER/PACER_Framework
+git clone https://github.com/<your-org>/<your-pacer-repo>.git
+cd <your-pacer-repo>/PACER_Framework
 
 python3 -m venv .venv
 source .venv/bin/activate

@@ -1,6 +1,6 @@
 """PACER framework — robot/VLA-agnostic process-aware post-training.
 
-Reference implementation of the PACER paper (Main (1).tex, main + appendix):
+Reference implementation of the PACER paper main text and appendix:
 targets -> rollout/correction/clean-demo records -> standard rows -> evidence,
 gates, and weights -> eight training views -> external VLA training -> offline
 open-loop evaluation (EEF cosine, v_j, J_val, audits) -> hardware candidate
@@ -40,6 +40,7 @@ from pacer_framework.weights import compile_weights, robust_center_scale, row_we
 from pacer_framework.alignment import (
     blocker_flags_from_open_loop,
     chunk_direction,
+    chunk_trajectory_alignment,
     direction_cosine01,
     open_loop_submetrics,
     reference_alignment,
@@ -48,6 +49,8 @@ from pacer_framework.alignment import (
 )
 from pacer_framework.validation import (
     DEFAULT_SUBMETRIC_WEIGHTS,
+    SUBMETRIC_ALIASES,
+    VALIDATION_SUBMETRICS,
     candidate_feasibility,
     component_balanced_j_val,
     evaluate_candidate,
@@ -77,8 +80,10 @@ __all__ = [
     "PAPER_ROLES",
     "POSITIVE_IMITATION_ROLES",
     "RobotHooks",
+    "SUBMETRIC_ALIASES",
     "TargetRegion",
     "TrainerHooks",
+    "VALIDATION_SUBMETRICS",
     "VLAHooks",
     "PaperEta",
     "assign_case_group_split",
@@ -86,6 +91,7 @@ __all__ = [
     "candidate_feasibility",
     "candidate_ranking_table",
     "chunk_direction",
+    "chunk_trajectory_alignment",
     "compile_baseline",
     "compile_weights",
     "component_balanced_j_val",

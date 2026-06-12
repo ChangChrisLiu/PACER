@@ -9,9 +9,8 @@ reference implementation: bring your own arm, your own VLA, your own targets,
 and run the pipeline below. Pure Python stdlib, offline-only — no robot
 drivers, no model code, no hardware imports.
 
-Algorithm source of truth: the PACER paper (main text + appendix; not bundled
-in this repository before publication). Every equation is implemented verbatim
-and locked by a test (claim map below).
+Algorithm source of truth: the PACER paper main text and appendix.
+Every equation is implemented verbatim and locked by a test (claim map below).
 
 ## The PACER pipeline
 
@@ -85,7 +84,7 @@ For full GitHub-style onboarding, including optional robot/VLA packages, read
 `docs/ADAPTER_HOOKS.md`. If your robot/simulator streams logs from another
 process, use `docs/ZMQ_COLLECTION.md` and the optional
 `python -m pacer_framework.collect_zmq` receiver. For the concrete terminal
-layout and the reference collection/inference scripts, read
+layout and the PACER runtime-adapter collection/inference scripts, read
 `docs/TELEOP_COLLECTION_INFERENCE.md`.
 
 `examples/end_to_end_demo.py` walks steps 1–7 on an imaginary arm with two

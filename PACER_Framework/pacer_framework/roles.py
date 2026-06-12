@@ -10,7 +10,7 @@ from __future__ import annotations
 
 PAPER_ROLES = ("clean", "correction", "auto_success", "partial", "failure", "excluded")
 
-# Compiler / runtime-adapter vocabulary used by PACER action-chunk rows.
+# Compiler / legacy-view vocabulary used by PACER action-chunk rows.
 COMPILER_TO_PAPER = {
     "clean_demo": "clean",
     "human_correction": "correction",

@@ -59,6 +59,35 @@ def chunk_direction(positions: Sequence[Point]) -> list[float]:
     return _sub(positions[-1], positions[0])
 
 
+def _common_step_deltas(a: Sequence[Point], b: Sequence[Point]) -> tuple[list[list[float]], list[list[float]]]:
+    common = min(len(a), len(b))
+    if common < 2:
+        raise ValueError("chunk trajectory alignment requires at least two positions in each chunk")
+    a_steps = [_sub(a[i + 1], a[i]) for i in range(common - 1)]
+    b_steps = [_sub(b[i + 1], b[i]) for i in range(common - 1)]
+    return a_steps, b_steps
+
+
+def _flatten(vectors: Sequence[Sequence[float]]) -> list[float]:
+    return [float(x) for vec in vectors for x in vec]
+
+
+def chunk_trajectory_alignment(
+    predicted_positions: Sequence[Point],
+    reference_positions: Sequence[Point],
+) -> float:
+    """Whole action-chunk EEF/TCP trajectory alignment.
+
+    Unlike :func:`reference_alignment`, which compares only endpoint net
+    displacement, this compares the sequence of per-step TCP displacements over
+    the common valid horizon. This rewards a candidate for following the same
+    approach path toward the target zone, not merely ending with the same net
+    direction.
+    """
+    pred_steps, ref_steps = _common_step_deltas(predicted_positions, reference_positions)
+    return direction_cosine01(_flatten(pred_steps), _flatten(ref_steps))
+
+
 def reference_alignment(
     predicted_positions: Sequence[Point],
     reference_positions: Sequence[Point],
@@ -84,6 +113,7 @@ def open_loop_submetrics(
     phase_ending: bool = False,
     stop_emitted: bool | None = None,
     reference_positions: Sequence[Point] | None = None,
+    reference_alignment_mode: str = "endpoint",
 ) -> dict[str, float]:
     """Bounded submetrics for one validation row (app:valscore).
 
@@ -91,7 +121,10 @@ def open_loop_submetrics(
     as the training evidence, evaluated on the candidate-predicted chunk. The
     stop submetric is included only for phase-ending rows (it is omitted and
     the remaining coefficients renormalize otherwise), and the align submetric
-    only when a matched reference chunk exists.
+    only when a matched reference chunk exists. By default align preserves the
+    historical endpoint/net-direction definition. Pass
+    ``reference_alignment_mode="trajectory"`` to score whole EEF/TCP action-
+    chunk trajectory alignment over the common valid horizon.
     """
     if len(predicted_positions) < 1:
         raise ValueError("open_loop_submetrics requires at least one predicted position")
@@ -114,7 +147,12 @@ def open_loop_submetrics(
     if phase_ending:
         submetrics["stop"] = 1.0 if stop_emitted else 0.0
     if reference_positions is not None:
-        submetrics["align"] = reference_alignment(predicted_positions, reference_positions)
+        if reference_alignment_mode in {"endpoint", "endpoint_net_direction", "net_direction"}:
+            submetrics["align"] = reference_alignment(predicted_positions, reference_positions)
+        elif reference_alignment_mode in {"trajectory", "whole_chunk", "whole_chunk_trajectory"}:
+            submetrics["align"] = chunk_trajectory_alignment(predicted_positions, reference_positions)
+        else:
+            raise ValueError(f"unknown reference_alignment_mode: {reference_alignment_mode}")
     return submetrics
 
 

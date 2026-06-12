@@ -2,6 +2,7 @@ import pytest
 
 from pacer_framework.alignment import (
     blocker_flags_from_open_loop,
+    chunk_trajectory_alignment,
     direction_cosine01,
     open_loop_submetrics,
     reference_alignment,
@@ -23,6 +24,42 @@ def test_reference_alignment_eq_app_align():
     reference_opposite = [[5.0, 5.0, 5.0], [4.8, 5.0, 5.0]]
     assert reference_alignment(predicted, reference_same) == pytest.approx(1.0, abs=1e-4)
     assert reference_alignment(predicted, reference_opposite) == 0.0
+
+
+def test_chunk_trajectory_alignment_distinguishes_path_from_endpoint_direction():
+    reference = [
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [2.0, 0.0, 0.0],
+        [3.0, 0.0, 0.0],
+    ]
+    same_endpoint_but_zigzag = [
+        [0.0, 0.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [2.0, -1.0, 0.0],
+        [3.0, 0.0, 0.0],
+    ]
+    matched = [
+        [5.0, 2.0, 0.0],
+        [6.0, 2.0, 0.0],
+        [7.0, 2.0, 0.0],
+        [8.0, 2.0, 0.0],
+    ]
+
+    # Endpoint/net direction cannot distinguish these two paths.
+    assert reference_alignment(same_endpoint_but_zigzag, reference) == pytest.approx(1.0, abs=1e-4)
+
+    # Whole chunk alignment rewards matching the demonstrated per-step path instead.
+    assert chunk_trajectory_alignment(matched, reference) == pytest.approx(1.0, abs=1e-4)
+    assert chunk_trajectory_alignment(same_endpoint_but_zigzag, reference) < 0.60
+
+
+def test_chunk_trajectory_alignment_uses_common_horizon_for_short_chunks():
+    reference = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]
+    predicted_short = [[10.0, 0.0, 0.0], [11.0, 0.0, 0.0]]
+    assert chunk_trajectory_alignment(predicted_short, reference) == pytest.approx(1.0, abs=1e-4)
+    with pytest.raises(ValueError, match="at least two"):
+        chunk_trajectory_alignment([[0.0, 0.0, 0.0]], reference)
 
 
 def test_target_direction_cosine_reads_chunk_displacement():
@@ -53,6 +90,14 @@ def test_open_loop_submetrics_match_training_predicates():
     )
     assert sub["stop"] == 1.0
     assert sub["align"] == pytest.approx(1.0, abs=1e-3)
+    sub = open_loop_submetrics(
+        [[0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [2.0, -1.0, 0.0], [3.0, 0.0, 0.0]],
+        target_point=[3.0, 0.0, 0.0],
+        component="widget",
+        reference_positions=[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [3.0, 0.0, 0.0]],
+        reference_alignment_mode="trajectory",
+    )
+    assert sub["align"] < 0.60
     sub = open_loop_submetrics(
         predicted, target_point=[0.10, 0.0, 0.0], component="widget",
         phase_ending=True, stop_emitted=False,

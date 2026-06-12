@@ -2,7 +2,7 @@ import pytest
 
 from pacer_framework.eta import CANDIDATE_POOL, FREE_BOUNDS, PaperEta, process_score
 
-# Table app_candidates, transcribed cell by cell from Main (1).tex.
+# Table app_candidates, transcribed cell by cell from the PACER paper appendix.
 PAPER_CANDIDATE_TABLE = {
     "rw_like":                 (0.30, 0.45, 0.15, 0.05, 1.20, 0.60, 1.00, 4.50),
     "progress_heavy":          (0.55, 0.20, 0.15, 0.05, 1.20, 0.60, 1.00, 4.50),
