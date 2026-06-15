@@ -78,7 +78,26 @@ Both are omitted automatically when unavailable (the λ coefficients renormalize
 per row). A diagnostic action-vector cosine, if you log one, must stay out of
 the submetrics dict used for ranking.
 
-## 3. J_val, audits, and selection
+## 3. Default trajectory-robust PACER calculation
+
+The current default process-aware PACER calculation is the trajectory-robust
+A+ profile implemented by `robust_profile_j_val`. This is separate from the
+legacy endpoint/outcome-weighted strict `component_balanced_j_val` diagnostic.
+A+ uses nonzero outcome and no-regression terms, makes whole-chunk EEF/TCP
+trajectory alignment the primary process-fidelity term, and aggregates by the
+lower quartile over component×role cells.
+
+```python
+from pacer_framework import robust_profile_j_val
+
+score, row_scores, manifest = robust_profile_j_val(validation_rows)
+assert manifest["profile"] == "trajectory_robust_component_role_q25_A_plus"
+```
+
+See `docs/TRAJECTORY_ROBUST_SCORING.md` for the exact default parameters and
+current config_001 all10 diagnostic numbers.
+
+## 4. Legacy J_val, audits, and selection
 
 ```python
 from pacer_framework import (component_balanced_j_val, evaluate_candidate,
@@ -110,7 +129,7 @@ A_audit·A_wrong·A_safe·A_reg with zero tolerance on wrong-target and unsafe
 leakage (eq:app_feasibility). J_val is a model-selection diagnostic — never a
 training loss and never a substitute for deployment success.
 
-## 4. Held-out comparison, exactly as reported
+## 5. Held-out comparison, exactly as reported
 
 Evaluate ONLY the selected candidate and the baselines on held-out scene
 configurations that appeared nowhere in the buffer, with the same reset,
@@ -138,7 +157,7 @@ replacement with both methods sharing each draw. With few components, report
 bootstrap intervals as descriptive diagnostics, not as a replacement for the
 actual held-out success rates.
 
-## 5. Hand off to hardware (pipeline step 7)
+## 6. Hand off to hardware (pipeline step 7)
 
 The offline J_val + audits exist to answer one question: **which trained
 candidate goes on the robot**. The decision rule, in full:

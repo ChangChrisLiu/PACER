@@ -43,6 +43,66 @@ DEFAULT_SUBMETRIC_WEIGHTS: dict[str, float] = {
     "no_regression": 0.10,
 }
 
+# Named validation/scoring profiles.  These profiles are scorer-side lambda_m
+# choices over already-computed validation submetrics; they do NOT change the
+# trained policy or PACER eta weighting.  The trajectory-primary profiles are
+# useful when the diagnostic objective is process fidelity over the whole
+# common-horizon EEF/TCP trajectory rather than endpoint/terminal matching.
+SCORING_PROFILES: dict[str, dict[str, float]] = {
+    "default_current": dict(DEFAULT_SUBMETRIC_WEIGHTS),
+    "trajectory_direction_balanced_A": {
+        "progress": 0.025,
+        "proximity": 0.025,
+        "terminal": 0.025,
+        "direction": 0.300,
+        "align": 0.600,
+        "no_regression": 0.025,
+    },
+    "trajectory_direction_balanced_B": {
+        "progress": 0.020,
+        "proximity": 0.040,
+        "terminal": 0.020,
+        "direction": 0.300,
+        "align": 0.590,
+        "no_regression": 0.030,
+    },
+    "trajectory_primary_strong": {
+        "progress": 0.030,
+        "proximity": 0.040,
+        "terminal": 0.030,
+        "direction": 0.100,
+        "align": 0.750,
+        "no_regression": 0.050,
+    },
+    "trajectory_primary_stronger": {
+        "progress": 0.025,
+        "proximity": 0.035,
+        "terminal": 0.025,
+        "direction": 0.100,
+        "align": 0.780,
+        "no_regression": 0.035,
+    },
+}
+
+
+def submetric_weights_for_profile(profile: str | Mapping[str, float] | None = None) -> dict[str, float]:
+    """Return scorer weights for a named validation profile.
+
+    Passing a mapping returns a shallow float-cast copy.  Passing None returns
+    the default paper-strict weights.  Named trajectory profiles are intended
+    for explicitly-labeled sensitivity/diagnostic tables unless frozen before a
+    held-out evaluation.
+    """
+    if profile is None:
+        return dict(DEFAULT_SUBMETRIC_WEIGHTS)
+    if isinstance(profile, Mapping):
+        return {str(k): float(v) for k, v in profile.items()}
+    key = str(profile)
+    if key not in SCORING_PROFILES:
+        raise KeyError(f"unknown scoring profile {key!r}; available={sorted(SCORING_PROFILES)}")
+    return dict(SCORING_PROFILES[key])
+
+
 GEOMETRIC_SUBMETRICS = ("progress", "proximity", "terminal", "direction")
 
 BLOCKER_FLAGS = ("wrong_target", "non_target_exclusion", "invalid_orientation", "unsafe")
@@ -69,6 +129,65 @@ class RowScore:
     score: float
     used_submetrics: tuple[str, ...] = field(default_factory=tuple)
     audit_reasons: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class ScorerProfile:
+    """Named validation-score contract for paper/appendix diagnostics.
+
+    `SCORING_PROFILES` above remains the legacy direct lambda_m map. This
+    richer profile object defines factor families and aggregation semantics for
+    trajectory-primary diagnostics that were underspecified in the paper.
+    """
+
+    name: str
+    family_weights: dict[str, float]
+    outcome_weights: dict[str, float]
+    trajectory_weights: dict[str, float]
+    aggregation: str
+    label: str
+
+
+DEFAULT_ROBUST_SCORER_PROFILE = "trajectory_robust_component_role_q25_A_plus"
+
+
+ROBUST_SCORER_PROFILES: dict[str, ScorerProfile] = {
+    "trajectory_robust_component_role_q25_A": ScorerProfile(
+        name="trajectory_robust_component_role_q25_A",
+        family_weights={"outcome": 0.25, "trajectory": 0.65, "no_regression": 0.10},
+        outcome_weights={"progress": 1.0, "proximity": 1.0, "terminal": 1.0},
+        trajectory_weights={"direction": 0.20, "align": 0.80},
+        aggregation="component_role_q25",
+        label="trajectory_robust_sensitivity",
+    ),
+    "trajectory_robust_component_role_q25_B": ScorerProfile(
+        name="trajectory_robust_component_role_q25_B",
+        family_weights={"outcome": 0.20, "trajectory": 0.60, "no_regression": 0.20},
+        outcome_weights={"progress": 1.0, "proximity": 1.0, "terminal": 1.0},
+        trajectory_weights={"direction": 0.10, "align": 0.90},
+        aggregation="component_role_q25",
+        label="trajectory_robust_sensitivity",
+    ),
+    "trajectory_robust_component_role_q25_A_plus": ScorerProfile(
+        name="trajectory_robust_component_role_q25_A_plus",
+        family_weights={"outcome": 0.20, "trajectory": 0.70, "no_regression": 0.10},
+        outcome_weights={"progress": 1.0, "proximity": 1.0, "terminal": 1.0},
+        trajectory_weights={"direction": 0.15, "align": 0.85},
+        aggregation="component_role_q25",
+        label="trajectory_robust_sensitivity",
+    ),
+}
+
+
+def scorer_profile(profile: str | ScorerProfile | None = None) -> ScorerProfile:
+    if profile is None:
+        profile = DEFAULT_ROBUST_SCORER_PROFILE
+    if isinstance(profile, ScorerProfile):
+        return profile
+    key = str(profile)
+    if key not in ROBUST_SCORER_PROFILES:
+        raise KeyError(f"unknown robust scorer profile {key!r}; available={sorted(ROBUST_SCORER_PROFILES)}")
+    return ROBUST_SCORER_PROFILES[key]
 
 
 def _finite(value: Any) -> bool:
@@ -201,6 +320,111 @@ def component_balanced_j_val(
         "audit_counts": dict(sorted(audit_counts.items())),
     }
     return _clip01(j_val), scores, manifest
+
+
+def _family_weighted_row_score(row: Mapping[str, Any], profile: ScorerProfile) -> RowScore:
+    """Row score for named factor-family profiles.
+
+    This is deliberately separate from `row_score`: it makes the paper-facing
+    trajectory-primary extension explicit as outcome/trajectory/no-regression
+    families instead of many independent lambda_m terms.
+    """
+    role = normalize_role(row.get("role") or row.get("sample_role"), strict=False)
+    component = str(row.get("component") or "unknown")
+    row_id = str(row.get("row_id") or row.get("id") or "unknown")
+    passed, reasons = blocker(row)
+    positive = role in POSITIVE_IMITATION_ROLES
+    audit_reasons = list(reasons)
+    if role in AUDIT_ONLY_ROLES:
+        audit_reasons.append("audit_only_role")
+    elif not positive:
+        audit_reasons.append("non_positive_scoring_role")
+
+    submetrics = row.get("submetrics", {})
+    if not isinstance(submetrics, Mapping):
+        submetrics = {}
+    submetrics = _canonical_submetrics(submetrics)
+    outcome, outcome_used = _weighted_mean(submetrics, profile.outcome_weights)
+    trajectory, trajectory_used = _weighted_mean(submetrics, profile.trajectory_weights)
+    reg_value = submetrics.get("no_regression")
+    no_regression_score = _clip01(float(reg_value)) if _finite(reg_value) else 0.0
+    family_values = {
+        "outcome": outcome,
+        "trajectory": trajectory,
+        "no_regression": no_regression_score,
+    }
+    value = 0.0
+    denom = 0.0
+    for family_name, weight in profile.family_weights.items():
+        if _finite(weight) and float(weight) >= 0.0:
+            value += float(weight) * family_values.get(family_name, 0.0)
+            denom += float(weight)
+    score = _clip01(value / (denom + EPS)) if denom > 0.0 else 0.0
+    used = tuple(dict.fromkeys(tuple(outcome_used) + tuple(trajectory_used) + (("no_regression",) if _finite(reg_value) else tuple())))
+    score = score if (positive and passed and used) else 0.0
+    return RowScore(
+        row_id=row_id,
+        component=component,
+        role=role,
+        positive_scoring=positive,
+        blocker_passed=passed,
+        score=score,
+        used_submetrics=used,
+        audit_reasons=tuple(audit_reasons),
+    )
+
+
+def _lower_quartile(values: Sequence[float]) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(float(v) for v in values)
+    return ordered[int(0.25 * (len(ordered) - 1))]
+
+
+def robust_profile_j_val(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    profile: str | ScorerProfile | None = None,
+) -> tuple[float, list[RowScore], dict[str, Any]]:
+    """Trajectory-primary robust diagnostic score.
+
+    This fills an underspecified paper space: when the diagnostic objective is
+    whole-chunk trajectory/process fidelity, aggregate row scores over
+    component×role cells and take the lower quartile (q25). That makes the score
+    a consistency/robustness diagnostic rather than an easy-row mean, while the
+    same blocker/role rules apply to every method including controls.
+    """
+    prof = scorer_profile(profile)
+    scores = [_family_weighted_row_score(row, prof) for row in rows]
+    by_cell: dict[str, list[float]] = defaultdict(list)
+    by_component: dict[str, list[float]] = defaultdict(list)
+    audit_counts: dict[str, int] = defaultdict(int)
+    for s in scores:
+        if s.positive_scoring:
+            by_component[s.component].append(s.score)
+            by_cell[f"{s.component}/{s.role}"].append(s.score)
+        for reason in s.audit_reasons:
+            audit_counts[reason] += 1
+    component_scores = {k: sum(v) / len(v) for k, v in sorted(by_component.items()) if v}
+    cell_scores = {k: sum(v) / len(v) for k, v in sorted(by_cell.items()) if v}
+    if prof.aggregation == "component_role_q25":
+        value = _lower_quartile(list(cell_scores.values()))
+    else:
+        raise ValueError(f"unsupported robust aggregation {prof.aggregation!r}")
+    manifest = {
+        "profile": prof.name,
+        "label": prof.label,
+        "aggregation": prof.aggregation,
+        "family_weights": dict(prof.family_weights),
+        "outcome_weights": dict(prof.outcome_weights),
+        "trajectory_weights": dict(prof.trajectory_weights),
+        "num_rows": len(rows),
+        "num_positive_scoring_rows": sum(1 for s in scores if s.positive_scoring),
+        "component_scores": component_scores,
+        "cell_scores": cell_scores,
+        "audit_counts": dict(sorted(audit_counts.items())),
+    }
+    return _clip01(value), scores, manifest
 
 
 def candidate_feasibility(

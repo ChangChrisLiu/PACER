@@ -2,12 +2,17 @@ import pytest
 
 from pacer_framework.validation import (
     DEFAULT_SUBMETRIC_WEIGHTS,
+    SCORING_PROFILES,
     candidate_feasibility,
     component_balanced_j_val,
     geometric_row_score,
     no_regression,
+    DEFAULT_ROBUST_SCORER_PROFILE,
+    robust_profile_j_val,
     row_score,
+    scorer_profile,
     select_candidate,
+    submetric_weights_for_profile,
 )
 
 
@@ -25,6 +30,104 @@ def val_row(component="ram", role="partial", **over):
 def test_default_lambda_includes_align_and_no_regression():
     for name in ("progress", "proximity", "terminal", "direction", "stop", "align", "no_regression"):
         assert name in DEFAULT_SUBMETRIC_WEIGHTS
+
+
+def test_named_scoring_profiles_are_available_and_distinct():
+    assert submetric_weights_for_profile() == DEFAULT_SUBMETRIC_WEIGHTS
+    assert submetric_weights_for_profile("default_current") == DEFAULT_SUBMETRIC_WEIGHTS
+
+    strong = submetric_weights_for_profile("trajectory_primary_strong")
+    assert strong["align"] == pytest.approx(0.750)
+    assert strong["direction"] == pytest.approx(0.100)
+    assert strong["progress"] > 0.0
+    assert strong["proximity"] > 0.0
+    assert strong["terminal"] > 0.0
+    assert strong["no_regression"] > 0.0
+    assert strong != DEFAULT_SUBMETRIC_WEIGHTS
+
+    copied = submetric_weights_for_profile({"align": 0.5, "direction": 0.5})
+    assert copied == {"align": 0.5, "direction": 0.5}
+    with pytest.raises(KeyError):
+        submetric_weights_for_profile("missing_profile")
+
+    assert {
+        "trajectory_direction_balanced_A",
+        "trajectory_primary_strong",
+        "trajectory_primary_stronger",
+    } <= set(SCORING_PROFILES)
+
+
+def test_trajectory_primary_profile_changes_row_score_toward_alignment():
+    row = val_row(
+        submetrics={
+            "progress": 0.0,
+            "proximity": 0.0,
+            "terminal": 0.0,
+            "direction": 0.5,
+            "align": 1.0,
+            "no_regression": 1.0,
+        }
+    )
+    default_score = row_score(row, submetric_weights=submetric_weights_for_profile("default_current")).score
+    trajectory_score = row_score(row, submetric_weights=submetric_weights_for_profile("trajectory_primary_strong")).score
+    assert trajectory_score > default_score
+
+
+def test_trajectory_robust_profile_contract_is_named_and_explicit():
+    profile = scorer_profile("trajectory_robust_component_role_q25_A")
+    assert profile.name == "trajectory_robust_component_role_q25_A"
+    assert profile.family_weights == {"outcome": 0.25, "trajectory": 0.65, "no_regression": 0.10}
+    assert profile.trajectory_weights == {"direction": 0.20, "align": 0.80}
+    assert profile.aggregation == "component_role_q25"
+    assert profile.label == "trajectory_robust_sensitivity"
+
+    plus = scorer_profile("trajectory_robust_component_role_q25_A_plus")
+    assert plus.family_weights == {"outcome": 0.20, "trajectory": 0.70, "no_regression": 0.10}
+    assert plus.trajectory_weights == {"direction": 0.15, "align": 0.85}
+    assert plus.aggregation == "component_role_q25"
+    assert DEFAULT_ROBUST_SCORER_PROFILE == "trajectory_robust_component_role_q25_A_plus"
+
+
+def test_trajectory_robust_default_profile_is_a_plus():
+    rows = [
+        val_row(component="ram", role="clean", submetrics={"progress": 1.0, "proximity": 0.5, "terminal": 0.0, "direction": 0.0, "align": 1.0, "no_regression": 1.0}),
+    ]
+    default_score, _default_rows, default_manifest = robust_profile_j_val(rows)
+    explicit_score, _explicit_rows, explicit_manifest = robust_profile_j_val(
+        rows, profile="trajectory_robust_component_role_q25_A_plus"
+    )
+    assert default_score == pytest.approx(explicit_score)
+    assert default_manifest["profile"] == "trajectory_robust_component_role_q25_A_plus"
+    assert explicit_manifest["profile"] == "trajectory_robust_component_role_q25_A_plus"
+
+
+def test_trajectory_robust_profile_uses_component_role_lower_tail_not_mean():
+    rows = [
+        val_row(component="ram", role="clean", submetrics={"progress": 1.0, "proximity": 1.0, "terminal": 1.0, "direction": 1.0, "align": 1.0, "no_regression": 1.0}),
+        val_row(component="ram", role="correction", submetrics={"progress": 0.0, "proximity": 0.0, "terminal": 0.0, "direction": 0.0, "align": 0.0, "no_regression": 0.0}),
+        val_row(component="cpu", role="clean", submetrics={"progress": 1.0, "proximity": 1.0, "terminal": 1.0, "direction": 1.0, "align": 1.0, "no_regression": 1.0}),
+        val_row(component="cpu", role="correction", submetrics={"progress": 1.0, "proximity": 1.0, "terminal": 1.0, "direction": 1.0, "align": 1.0, "no_regression": 1.0}),
+    ]
+    score, row_scores, manifest = robust_profile_j_val(rows, profile="trajectory_robust_component_role_q25_A")
+    # Component-role cells are [0, 1, 1, 1], so lower-quartile/q25 is 0.
+    # A component mean would be 0.75; this pins lower-tail robustness semantics.
+    assert score == pytest.approx(0.0, abs=1e-6)
+    assert manifest["aggregation"] == "component_role_q25"
+    assert manifest["profile"] == "trajectory_robust_component_role_q25_A"
+    assert manifest["cell_scores"]["ram/correction"] == pytest.approx(0.0)
+    assert len(row_scores) == 4
+
+
+def test_trajectory_robust_profile_zeroes_blocked_rows_symmetrically():
+    rows = [
+        val_row(component="ram", role="clean", wrong_target=True, submetrics={"progress": 1.0, "proximity": 1.0, "terminal": 1.0, "direction": 1.0, "align": 1.0, "no_regression": 1.0}),
+        val_row(component="cpu", role="clean", submetrics={"progress": 1.0, "proximity": 1.0, "terminal": 1.0, "direction": 1.0, "align": 1.0, "no_regression": 1.0}),
+    ]
+    score, row_scores, manifest = robust_profile_j_val(rows, profile="trajectory_robust_component_role_q25_A")
+    assert row_scores[0].score == 0.0
+    assert "wrong_target" in row_scores[0].audit_reasons
+    assert score == pytest.approx(0.0, abs=1e-6)
+    assert manifest["audit_counts"]["wrong_target"] == 1
 
 
 def test_row_score_renormalizes_over_applicable_submetrics():

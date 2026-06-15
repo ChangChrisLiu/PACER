@@ -62,7 +62,16 @@ Every equation is implemented verbatim and locked by a test (claim map below).
    (`alignment.reference_alignment`, eq:app_align), row scores v_j with
    blockers, component-balanced J_val, feasibility audits, and the comparison
    tables (`evaluate_candidate`, `success_table`,
-   `paired_component_bootstrap`). → `docs/RUNBOOK_EVALUATION.md`
+   `paired_component_bootstrap`). PACER also exposes named trajectory-primary
+   robust scorer profiles (`robust_profile_j_val`) for diagnostics where
+   whole-chunk process fidelity is the declared validation objective. The
+   current default robust profile is `trajectory_robust_component_role_q25_A_plus`:
+   it keeps outcome/no-regression terms nonzero, scores blocked rows as zero,
+   and aggregates by the lower quartile over component×role cells so controls
+   are judged by the same robustness rule as PACER candidates. See
+   `docs/TRAJECTORY_ROBUST_SCORING.md` for the exact default parameters and
+   current config_001 all10 numbers.
+   → `docs/RUNBOOK_EVALUATION.md`
 7. **Pick the model for the hardware run**: the audited candidate with the
    highest J_val (`select_candidate`); when no candidate passes the audits,
    fall back to the reference policy. Only the selected model (plus baselines,
@@ -103,6 +112,7 @@ docs/      SETUP.md                   <- GitHub clone/install/verify guide
            RUNBOOK_DATA_COLLECTION.md <- steps 1-3
            RUNBOOK_TRAINING_PREP.md   <- steps 4-5
            RUNBOOK_EVALUATION.md      <- steps 6-7
+           TRAJECTORY_ROBUST_SCORING.md <- current default trajectory-primary scorer
 examples/  training_rows.jsonl, validation_rows.jsonl,
            candidate_terminal_stop_heavy.json, end_to_end_demo.py
 pacer_framework/
@@ -174,6 +184,7 @@ OpenPI, or LeRobot.
 | Direction submetric (EEF target cosine) | `alignment.target_direction_cosine` | `test_alignment.py::test_target_direction_cosine_reads_chunk_displacement` |
 | eq:app_vhat / eq:app_reg | `validation.geometric_row_score`, `no_regression`, `alignment.with_no_regression` | `test_validation.py`, `test_alignment.py` |
 | eq:j_val (component-balanced) | `validation.component_balanced_j_val` | `test_validation.py::test_component_balanced_j_val_averages_components_not_rows` |
+| Current default trajectory-primary robust diagnostic (framework completion for process-fidelity scoring) | `validation.DEFAULT_ROBUST_SCORER_PROFILE`, `validation.scorer_profile`, `validation.robust_profile_j_val`, `docs/TRAJECTORY_ROBUST_SCORING.md` | `test_validation.py::test_trajectory_robust_profile_contract_is_named_and_explicit`, `test_validation.py::test_trajectory_robust_default_profile_is_a_plus`, `test_validation.py::test_trajectory_robust_profile_uses_component_role_lower_tail_not_mean` |
 | eq:app_feasibility (A_audit·A_wrong·A_safe·A_reg) | `validation.candidate_feasibility`, `evaluate_candidate` | `test_validation.py::test_candidate_feasibility_eq_app_feasibility` |
 | eq:selection + reference fallback | `validation.select_candidate` | `test_validation.py::test_select_candidate_argmax_with_reference_fallback` |
 | Table app_baselines (8 views) + eq:app_fixed_geometry | `baselines.compile_baseline` | `test_baselines.py` |
