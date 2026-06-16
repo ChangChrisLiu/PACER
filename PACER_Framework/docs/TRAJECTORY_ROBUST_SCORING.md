@@ -80,43 +80,40 @@ The stronger sensitivity profile remains available:
 trajectory_robust_component_role_q25_B
 ```
 
-## Current config_001 all10 diagnostic numbers
+## Computing scores
 
-These numbers are from the saved strict config_001 all10 artifacts and should be reported as trajectory-robust sensitivity diagnostics unless the profile is frozen before a held-out/protected evaluation.
+GitHub tracks the scoring method, not experiment-specific result tables. To compute scores for a candidate set, collect one validation-row list per method and call `robust_profile_j_val` on each list:
 
-A+ ranking summary:
+```python
+from pacer_framework.validation import robust_profile_j_val
 
-```text
-rank 1   pacer_pacer_eta_progress_heavy_18634956_fixed_norm_serving             0.519729
-rank 2   pacer_pacer_eta_correction_heavy_18634954_fixed_norm_serving           0.518210
-rank 3   pacer_pacer_eta_rw_like_18634958_fixed_norm_serving                    0.518210
-rank 4   pacer_pacer_eta_hover_proximity_heavy_18634955_fixed_norm_serving      0.511436
-rank 5   pacer_pacer_eta_conservative_18634953_fixed_norm_serving               0.511063
-rank 6   pacer_pacer_eta_terminal_stop_heavy_18634959_fixed_norm_serving        0.510535
-rank 7   pacer_pacer_eta_ram_connector_recovery_18634957_fixed_norm_serving     0.509901
-rank 8   pacer_pacer_eta_balanced_low_clip_18634952_fixed_norm_serving          0.509848
-rank 9   pacer_random_weight_18634960_fixed_norm_serving                        0.504061
-rank 10  pacer_fixed_rw_fma_18634951_fixed_norm_serving                         0.495619
-rank 11  pacer_uniform_replay_18634961_fixed_norm_serving                       0.470490
-rank 12  pacer_sftpp_clean_correction_demo_18634962_fixed_norm_serving          0.401049
-rank 13  pacer_outcome_only_18632502_fixed_norm_serving                         0.381767
-rank 14  pacer_clean_demo_only_18634949_fixed_norm_serving                      0.357204
-rank 15  pacer_correction_only_18634950_fixed_norm_serving                      0.213213
+scores = {}
+manifests = {}
+for method_name, validation_rows in rows_by_method.items():
+    score, row_scores, manifest = robust_profile_j_val(validation_rows)
+    scores[method_name] = score
+    manifests[method_name] = manifest
+
+ranking = sorted(scores.items(), key=lambda item: item[1], reverse=True)
 ```
 
-Summary:
+For an auditable table, save both the scalar score and the manifest for each method. The manifest records the profile name, family weights, aggregation rule, component scores, component×role cell scores, and audit counts.
 
-```text
-8 PACER η variants outperform fixed RW-FMA, SFT++, and random-weight under A+.
-random_weight remains visible in the same ranking and is not penalized by name.
+```python
+assert all(
+    manifest["profile"] == "trajectory_robust_component_role_q25_A_plus"
+    for manifest in manifests.values()
+)
 ```
 
-## Caveat
+## Reporting guidance
 
-A+ was chosen after inspecting config_001 all10 artifacts. Unless it is frozen and evaluated on a held-out/protected split, call these numbers:
+Report A+ as a trajectory-robust PACER diagnostic unless it has been frozen before a held-out/protected evaluation. The diagnostic is intended to test whether a method is process-consistent across correction regimes; it is not a substitute for robot success rates.
+
+Use wording like:
 
 ```text
-trajectory-robust sensitivity diagnostics
+We score candidates with the default trajectory-robust PACER profile A+, which keeps outcome and no-regression terms nonzero, makes whole-chunk EEF/TCP trajectory alignment the primary process-fidelity family, scores blocked rows as zero, and aggregates by the lower quartile over component×role cells.
 ```
 
-Do not call them protected validation or robot-success proof.
+Do not report GitHub documentation as if it contained a protected result table. Experiment-specific numbers should live in paper artifacts, internal reports, or generated evaluation outputs, not in the framework method definition.

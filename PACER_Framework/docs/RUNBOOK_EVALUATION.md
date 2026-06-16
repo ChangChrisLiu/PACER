@@ -95,7 +95,7 @@ assert manifest["profile"] == "trajectory_robust_component_role_q25_A_plus"
 ```
 
 See `docs/TRAJECTORY_ROBUST_SCORING.md` for the exact default parameters and
-current config_001 all10 diagnostic numbers.
+score-computation recipe.
 
 ## 4. Legacy J_val, audits, and selection
 

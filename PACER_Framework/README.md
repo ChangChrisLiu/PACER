@@ -70,7 +70,7 @@ Every equation is implemented verbatim and locked by a test (claim map below).
    and aggregates by the lower quartile over component×role cells so controls
    are judged by the same robustness rule as PACER candidates. See
    `docs/TRAJECTORY_ROBUST_SCORING.md` for the exact default parameters and
-   current config_001 all10 numbers.
+   score-computation recipe.
    → `docs/RUNBOOK_EVALUATION.md`
 7. **Pick the model for the hardware run**: the audited candidate with the
    highest J_val (`select_candidate`); when no candidate passes the audits,
