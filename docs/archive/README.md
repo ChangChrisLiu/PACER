@@ -6,8 +6,8 @@ Archived files are retained for provenance and repository-boundary context, but 
 
 1. `../GITHUB_ONBOARDING.md`
 2. `../PACER_ALGORITHM.md`
-3. `../PAPER_CLAIM_ALIGNMENT.md`
-4. `../PREPUBLICATION_SCOPE.md`
+3. `../FRAMEWORK_VERIFICATION.md`
+4. `../REPOSITORY_SCOPE.md`
 5. `../ROBOT_RUNTIME_INTEGRATION.md`
 6. `../HARDWARE_SOFTWARE_SETUP.md`
 

@@ -9,8 +9,7 @@ reference implementation: bring your own arm, your own VLA, your own targets,
 and run the pipeline below. Pure Python stdlib, offline-only — no robot
 drivers, no model code, no hardware imports.
 
-Algorithm source of truth: the PACER paper main text and appendix.
-Every equation is implemented verbatim and locked by a test (claim map below).
+Framework contracts are implemented directly and locked by tests (verification map below).
 
 ## The PACER pipeline
 
@@ -156,15 +155,15 @@ The framework consumes standard rows and base-frame TCP/EEF positions after
 those hooks run; it never imports robot SDKs, model code, ROS, PyTorch, JAX,
 OpenPI, or LeRobot.
 
-## Claim → code → test map (paper anchors)
+## Framework contract → code → test map
 
-| Paper anchor | Implementation | Locked by test |
+| Framework contract | Implementation | Locked by test |
 |---|---|---|
 | eq:process_role, Table app_rolemap | `roles.role_from_source_and_label` | `test_roles.py::test_role_from_source_and_label_matches_table_app_rolemap` |
 | eq:app_strict (strict success) | `roles.strict_success` | `test_roles.py::test_strict_success_eq_app_strict` |
-| eq:eta_free bounds (Table app_eta_free) | `eta.FREE_BOUNDS`, `PaperEta.validate_bounds` | `test_eta.py::test_validate_bounds_against_table_app_eta_free` |
-| eq:eta_fixed (9 fixed fields) | `PaperEta` fixed fields | `test_eta.py::test_fixed_protocol_fields_match_eq_eta_fixed` |
-| Table app_candidates (8 candidates) | `eta.CANDIDATE_POOL` | `test_eta.py::test_candidate_pool_matches_paper_table_exactly` |
+| Eta free-field bounds | `eta.FREE_BOUNDS`, eta validation helpers | `test_eta.py` |
+| Eta fixed protocol fields | eta configuration fields | `test_eta.py` |
+| Built-in candidate pool | `eta.CANDIDATE_POOL` | `test_eta.py` |
 | s_eta = Σ β_k e_k (raw coefficients) | `eta.process_score` | `test_eta.py::test_process_score_uses_raw_coefficients_without_renormalization` |
 | eq:app_dist / eq:app_geom (incl. T_i) | `evidence.compute_evidence`, `target_consistency` | `test_evidence.py::test_target_inconsistency_zeroes_geometric_evidence_only` |
 | eq:app_term + component tolerances | `evidence.r_target_for/d_ref_for` | `test_evidence.py::test_cpu_uses_tighter_tolerance` |

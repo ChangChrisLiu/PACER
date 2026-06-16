@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)
-[![Status: pre-publication](https://img.shields.io/badge/Status-pre--publication-orange.svg)](docs/PREPUBLICATION_SCOPE.md)
+[![Status: research framework](https://img.shields.io/badge/Status-research%20framework-blue.svg)](docs/REPOSITORY_SCOPE.md)
 
 PACER stands for **Process-Aware Correction and Evidence Reweighting**. It is a
 research codebase for improving vision-language-action (VLA) robot policies
@@ -17,11 +17,11 @@ synthetic examples, tests, setup notes, and runtime-adapter references. It does
 not contain private robot logs, videos, checkpoints, credentials, raw lab data,
 or final result tables.
 
-> **Status:** pre-publication research code released under the
-> [MIT License](LICENSE). Interfaces and schemas may still change before the
-> accompanying paper is published. See
-> [docs/PREPUBLICATION_SCOPE.md](docs/PREPUBLICATION_SCOPE.md) for exactly what
-> is included and excluded.
+> **Status:** research framework and runtime-adapter reference released under the
+> [MIT License](LICENSE). Interfaces and schemas may evolve as the framework is
+> adapted to additional robots and VLA stacks. See
+> [docs/REPOSITORY_SCOPE.md](docs/REPOSITORY_SCOPE.md) for exactly what is
+> included and excluded.
 
 New to the repo? [docs/GITHUB_ONBOARDING.md](docs/GITHUB_ONBOARDING.md) is the
 fastest install-and-verify checklist; the sections below explain each component
@@ -71,8 +71,8 @@ The algorithm and runtime notes are summarized in
 [`docs/PACER_ALGORITHM.md`](docs/PACER_ALGORITHM.md). The framework implementation
 has a more detailed method-to-code map in
 [`PACER_Framework/README.md`](PACER_Framework/README.md).
-For the publication-wide claim matrix across both layers, see
-[`docs/PAPER_CLAIM_ALIGNMENT.md`](docs/PAPER_CLAIM_ALIGNMENT.md).
+For a framework-wide verification matrix across both layers, see
+[`docs/FRAMEWORK_VERIFICATION.md`](docs/FRAMEWORK_VERIFICATION.md).
 
 ## Install the generic framework with venv
 
@@ -237,7 +237,7 @@ splits, validation scores, and exports.
 Important framework files and docs:
 
 - [`PACER_Framework/README.md`](PACER_Framework/README.md) explains the generic
-  PACER pipeline, package layout, hook boundaries, and claim-to-test map.
+  PACER pipeline, package layout, hook boundaries, and verification map.
 - [`PACER_Framework/docs/SETUP.md`](PACER_Framework/docs/SETUP.md) covers clone,
   install, verification, and optional integration dependency patterns.
 - [`PACER_Framework/docs/USAGE_QUICKSTART.md`](PACER_Framework/docs/USAGE_QUICKSTART.md)
@@ -257,7 +257,7 @@ Important framework files and docs:
   describe optional networked collection and a concrete terminal layout.
 - [`PACER_Framework/examples/`](PACER_Framework/examples/) contains synthetic
   rows, candidate configs, and an end-to-end demo. These examples are templates
-  for integration testing, not paper results.
+  for integration testing, not experiment results.
 - [`PACER_Framework/tests/`](PACER_Framework/tests/) locks the row schema,
   evidence math, weighting, baselines, validation, reporting, and the synthetic
   end-to-end path.
@@ -323,8 +323,8 @@ documents the small JSON contract used by hardware probes and local bridges.
 
 ## Root documentation
 
-The root [`docs/`](docs/) folder explains the publication-facing runtime and
-repo-boundary topics:
+The root [`docs/`](docs/) folder explains framework usage, runtime integration,
+and repository-boundary topics:
 
 - [`docs/GITHUB_ONBOARDING.md`](docs/GITHUB_ONBOARDING.md) is a compact
   checklist for installing, verifying, and deciding which layer to use.
@@ -332,10 +332,10 @@ repo-boundary topics:
   data-contract summary for rollout, correction, clean-demo, and weighted-view
   artifacts.
 - [`docs/PACER_ALGORITHM.md`](docs/PACER_ALGORITHM.md) summarizes process
-  evidence, hard gates, eta scoring, weighting, validation, and claim-control
+  evidence, hard gates, eta scoring, weighting, validation, and verification
   rules.
-- [`docs/PAPER_CLAIM_ALIGNMENT.md`](docs/PAPER_CLAIM_ALIGNMENT.md) maps paper
-  claims to publication-safe code, docs, and tests.
+- [`docs/FRAMEWORK_VERIFICATION.md`](docs/FRAMEWORK_VERIFICATION.md) maps
+  framework capabilities to code, docs, and tests.
 - [`docs/QUICKSTART_PI05.md`](docs/QUICKSTART_PI05.md) shows a Pi0.5/OpenPI
   style model-to-rollout-to-correction-to-PACER workflow.
 - [`docs/HARDWARE_SOFTWARE_SETUP.md`](docs/HARDWARE_SOFTWARE_SETUP.md) explains
@@ -345,8 +345,8 @@ repo-boundary topics:
   drivers.
 - [`docs/ZMQ_AGENT_CONTRACT.md`](docs/ZMQ_AGENT_CONTRACT.md) defines safe ZMQ
   probe messages and bridge expectations.
-- [`docs/PREPUBLICATION_SCOPE.md`](docs/PREPUBLICATION_SCOPE.md) records what
-  is included and intentionally excluded from this research extraction.
+- [`docs/REPOSITORY_SCOPE.md`](docs/REPOSITORY_SCOPE.md) records what
+  is included and intentionally excluded from this repository.
 - [`docs/archive/INTERNAL_HANDOFFS_NOT_INCLUDED.md`](docs/archive/INTERNAL_HANDOFFS_NOT_INCLUDED.md)
   archives the old internal-handoff boundary note: local run handoffs, private
   job paths, raw logs, and scratch reviews are not part of the repository.

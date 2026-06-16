@@ -86,8 +86,8 @@ aggregation = lower quartile over component × role cells
 ```
 
 This is the framework-level scoring method. Actual experiment result tables
-belong in paper artifacts or generated evaluation outputs, not in this GitHub
-method definition.
+belong in generated evaluation outputs or project-specific artifacts, not in
+this GitHub method definition.
 
 ## Evidence dimensions
 
@@ -107,14 +107,14 @@ positive geometric credit from being assigned to the wrong target. This keeps
 operator/provenance diagnostics visible while preventing leakage into positive
 imitation evidence.
 
-## Claim-control notes
+## Verification-control notes
 
-- PACER eta search proposes candidate weights; it is not a claim of globally
+- PACER eta search proposes candidate weights; it is not a guarantee of globally
   converged optimality.
 - EEF/TCP cosine and related geometric scores are diagnostics, not final robot
-  task-success claims.
+  task-success guarantees.
 - Validation scores guide candidate selection; held-out robot success remains
-  final reporting only.
+  separate deployment evidence.
 - Fixed norm-stat discipline is required for fair comparisons between candidate
   policies.
 - Public/reusable docs should stay robot/VLA-agnostic unless a section is

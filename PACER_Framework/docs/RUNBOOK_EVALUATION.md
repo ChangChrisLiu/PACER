@@ -122,7 +122,7 @@ selected = select_candidate(j_vals, audited)         # None -> fall back to pi_t
 ranking = candidate_ranking_table(j_vals, audited, selected)
 ```
 
-Semantics, all paper-exact: v_j = B_j · renormalized weighted mean of the
+Semantics: v_j = B_j · renormalized weighted mean of the
 applicable submetrics (eq:row_val); J_val = mean over components of
 per-component mean row scores (eq:j_val); feasibility F(η) =
 A_audit·A_wrong·A_safe·A_reg with zero tolerance on wrong-target and unsafe
@@ -172,4 +172,4 @@ candidate goes on the robot**. The decision rule, in full:
    PACER never forces a post-trained model onto hardware.
 4. Freeze the selected checkpoint BEFORE the hardware evaluation, run the
    held-out protocol of §4 once, and report J_val only as the selection
-   diagnostic it is — the hardware success rate is the empirical claim.
+   diagnostic it is — deployment success rate is separate empirical evidence.

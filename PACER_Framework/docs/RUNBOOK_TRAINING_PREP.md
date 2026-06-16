@@ -7,14 +7,14 @@ your own training stack.
 
 ## 1. Declare the candidate set
 
-Use the paper's eight predeclared candidates as-is, or declare your own finite
-pool BEFORE any validation scoring exists:
+Use the built-in candidate pool as-is, or declare your own finite pool BEFORE
+any validation scoring exists:
 
 ```python
-from pacer_framework import CANDIDATE_POOL, PaperEta
-candidates = dict(CANDIDATE_POOL)              # the paper's 8
-mine = PaperEta(beta_prog=0.40, beta_prox=0.30, beta_term=0.20, beta_stop=0.10)
-assert mine.validate_bounds() == []            # declared search bounds
+from pacer_framework import CANDIDATE_POOL
+candidates = dict(CANDIDATE_POOL)              # built-in candidate set
+# Optional: declare additional eta configs in code before scoring, then validate
+# them with the eta module's bounds helpers.
 ```
 
 Eight free fields are searched; the nine fixed protocol fields
@@ -28,7 +28,7 @@ from pacer_framework import compile_weights
 weighted_rows, manifest = compile_weights(split_rows, eta, eta_id="terminal_stop_heavy")
 ```
 
-What happens inside (all paper-exact):
+What happens inside (all framework-defined):
 - evidence `e_k(i)` over {prog, prox, term, dir, stop, op, prov} from each
   row's geometry/labels, with the target-consistency factor T_i zeroing the
   geometric four on missing/inconsistent target metadata (eq:app_geom);
@@ -50,7 +50,7 @@ them after training.
 ```python
 from pacer_framework import BASELINE_MODES, compile_baseline, export_training_view
 
-for mode in BASELINE_MODES:            # the 8 views of the paper
+for mode in BASELINE_MODES:            # built-in baseline/training views
     if mode == "pacer_selected":
         continue                       # candidates are exported in step 2's loop
     rows_m, manifest_m = compile_baseline(split_rows, mode)

@@ -64,7 +64,7 @@ Expected:
 - tests pass;
 - demo prints `synthetic demo only` and walks the full pipeline on toy records.
 
-The demo numbers are synthetic placeholders, not paper or lab dataset results.
+The demo numbers are synthetic placeholders, not lab dataset or deployment results.
 
 ## 3. Choose your integration path
 

@@ -116,4 +116,4 @@ Use wording like:
 We score candidates with the default trajectory-robust PACER profile A+, which keeps outcome and no-regression terms nonzero, makes whole-chunk EEF/TCP trajectory alignment the primary process-fidelity family, scores blocked rows as zero, and aggregates by the lower quartile over component×role cells.
 ```
 
-Do not report GitHub documentation as if it contained a protected result table. Experiment-specific numbers should live in paper artifacts, internal reports, or generated evaluation outputs, not in the framework method definition.
+Do not treat framework documentation as if it contained a protected result table. Experiment-specific numbers should live in generated evaluation outputs or project-specific reports, not in the framework method definition.
