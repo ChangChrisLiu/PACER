@@ -28,8 +28,12 @@ validation views for VLA policy improvement.
 6. Clip/floor final weights according to role and candidate eta settings.
 7. Expose weights as training/export fields such as `returns.loss_weight`.
 8. Train candidate policies in the external VLA stack.
-9. Score candidates on validation data and optionally propose the next eta
-   candidate with Bayesian optimization.
+9. Score candidates on validation data with the current default trajectory-robust
+   PACER calculation (`trajectory_robust_component_role_q25_A_plus`): outcome
+   and no-regression terms remain nonzero, whole-chunk EEF/TCP trajectory
+   alignment is the primary process-fidelity family, blocked rows score zero,
+   and the scalar score is the lower quartile over component×role cells.
+10. Optionally propose the next eta candidate with Bayesian optimization.
 
 ## Main code entry points
 
@@ -61,6 +65,29 @@ docs is PACER.
 
 - `pacer.weighting.pacer_bo`
   - proposes eta candidates from validation scores using GP/EI-style search.
+
+## Current validation calculation
+
+The generic framework exposes the current PACER validation calculation through
+`pacer_framework.validation.robust_profile_j_val`. Calling it without an
+explicit profile uses:
+
+```text
+trajectory_robust_component_role_q25_A_plus
+```
+
+This default A+ profile uses three factor families:
+
+```text
+outcome    = mean(progress, proximity, terminal)
+trajectory = 0.15 * direction + 0.85 * align
+row_score  = 0.20 * outcome + 0.70 * trajectory + 0.10 * no_regression
+aggregation = lower quartile over component × role cells
+```
+
+This is the framework-level scoring method. Actual experiment result tables
+belong in paper artifacts or generated evaluation outputs, not in this GitHub
+method definition.
 
 ## Evidence dimensions
 

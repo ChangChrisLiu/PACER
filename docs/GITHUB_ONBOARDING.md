@@ -55,6 +55,7 @@ Read next:
 5. `PACER_Framework/docs/RUNBOOK_DATA_COLLECTION.md`
 6. `PACER_Framework/docs/RUNBOOK_TRAINING_PREP.md`
 7. `PACER_Framework/docs/RUNBOOK_EVALUATION.md`
+8. `PACER_Framework/docs/TRAJECTORY_ROBUST_SCORING.md`
 
 ## 4. If your robot streams data over ZMQ
 

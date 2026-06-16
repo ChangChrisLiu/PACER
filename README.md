@@ -347,9 +347,9 @@ repo-boundary topics:
   probe messages and bridge expectations.
 - [`docs/PREPUBLICATION_SCOPE.md`](docs/PREPUBLICATION_SCOPE.md) records what
   is included and intentionally excluded from this research extraction.
-- [`docs/INTERNAL_HANDOFFS_NOT_INCLUDED.md`](docs/INTERNAL_HANDOFFS_NOT_INCLUDED.md)
-  explains why local run handoffs, private job paths, raw logs, and scratch
-  reviews are not part of the repository.
+- [`docs/archive/INTERNAL_HANDOFFS_NOT_INCLUDED.md`](docs/archive/INTERNAL_HANDOFFS_NOT_INCLUDED.md)
+  archives the old internal-handoff boundary note: local run handoffs, private
+  job paths, raw logs, and scratch reviews are not part of the repository.
 
 ## Data collection modes
 
