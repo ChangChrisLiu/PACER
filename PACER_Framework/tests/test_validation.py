@@ -5,6 +5,7 @@ from pacer_framework.validation import (
     SCORING_PROFILES,
     candidate_feasibility,
     component_balanced_j_val,
+    evaluate_candidate,
     geometric_row_score,
     no_regression,
     DEFAULT_ROBUST_SCORER_PROFILE,
@@ -263,6 +264,33 @@ def test_candidate_feasibility_eq_app_feasibility():
         delta_reg=0.05,
     )
     assert feasible
+
+
+def test_paper_faithful_candidate_feasibility_requires_reference_scores_when_requested():
+    _, clean_scores, _ = component_balanced_j_val([val_row()])
+
+    feasible, checks = candidate_feasibility(
+        weight_manifest=_good_manifest(),
+        validation_scores=clean_scores,
+        w_max=4.5,
+        require_reference_component_scores=True,
+    )
+
+    assert feasible is False
+    assert checks["A_reg_no_regression"] is False
+    assert checks["A_reg_reference_scores_present"] is False
+
+
+def test_paper_faithful_evaluate_candidate_requires_reference_scores_when_requested():
+    result = evaluate_candidate(
+        validation_rows=[val_row()],
+        weight_manifest=_good_manifest(),
+        w_max=4.5,
+        require_reference_component_scores=True,
+    )
+
+    assert result["feasible"] is False
+    assert result["checks"]["A_reg_no_regression"] is False
 
 
 def test_select_candidate_argmax_with_reference_fallback():

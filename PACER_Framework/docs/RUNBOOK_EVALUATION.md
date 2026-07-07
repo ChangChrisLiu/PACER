@@ -134,6 +134,7 @@ evaluations = {
         w_max=candidates[name].w_max,
         reference_component_scores=ref["component_scores"],
         delta_reg=0.05,                              # fix BEFORE ranking
+        require_reference_component_scores=True,     # paper-faithful no-regression audit
     )
     for name in candidates
 }

@@ -183,3 +183,22 @@ def test_training_plan_validation_rejects_missing_files_and_wrong_base_type(tmp_
     assert "ablation_base_must_be_merged_original_sft:fixed_geometry" in errors
     assert "missing_ablation_base_checkpoint:fixed_geometry" in errors
     assert "missing_weighted_view:fixed_geometry" in errors
+
+
+def test_training_plan_default_steps_match_paper_budget(tmp_path: Path):
+    merged = _touch(tmp_path / "openpi/checkpoints/original_sft_merged/49999/_CHECKPOINT_METADATA")
+    views_root = tmp_path / "views"
+    for mode in ["clean_demo_only", "correction_only"]:
+        _touch(views_root / mode / "action_chunks.jsonl", "{}\n")
+        _touch(views_root / mode / "pacer_weight_manifest.json", json.dumps({"ablation_mode": mode, "weight_field": "returns.loss_weight", "safety_leakage": {}}))
+
+    plan = build_pacer_training_run_plan(
+        unmerged_original_sft_checkpoint=None,
+        merged_original_sft_checkpoint=merged.parent,
+        weighted_views_root=views_root,
+        output_root=tmp_path / "runs",
+        methods=["clean_demo_only"],
+    )
+
+    assert plan["sftpp_demo_run"]["steps"] == 10000
+    assert plan["ablation_lora_runs"][0]["steps"] == 10000

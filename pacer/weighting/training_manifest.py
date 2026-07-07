@@ -111,8 +111,11 @@ uv run python scripts/train.py pacer_runtime_lora_10hz \\
   --overwrite \\
   --no-wandb-enabled
 
-# ── Stage 3: Eval placeholder ──
-echo ">>> Stage 3: Eval placeholder for {method}"
+# ── Stage 3: Eval handoff placeholder ──
+# This manifest generator does not reproduce paper validation by itself; run the
+# PACER_Framework strict validation pipeline on frozen validation rows after
+# training.
+echo ">>> Stage 3: Eval handoff placeholder for {method}"
 python3 -c "
 import json, pathlib
 scores = dict(schema='pacer_bo_eval_scores.v0.1', method='{method}', status='EVAL_NOT_YET_IMPLEMENTED', run_dir='$RUN_DIR')
@@ -137,9 +140,13 @@ def build_pacer_training_run_plan(
     cluster_robot_runtime_root: str = "/scratch/$USER/PACER",
     hprc_openpi_root: str | None = None,
     hprc_robot_runtime_root: str | None = None,
-    steps: int = 8500,
+    steps: int = 10000,
 ) -> dict[str, Any]:
-    """Build a reviewer-safe local/cluster training plan without launching jobs."""
+    """Build a reviewer-safe local/cluster training plan without launching jobs.
+
+    The default 10,000-step budget matches the paper appendix's per-candidate
+    LoRA budget. Override ``steps`` only for explicit non-paper dry-runs.
+    """
     if hprc_openpi_root is not None:
         cluster_openpi_root = hprc_openpi_root
     if hprc_robot_runtime_root is not None:

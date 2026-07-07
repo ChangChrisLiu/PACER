@@ -85,10 +85,34 @@ For each validation row and trained candidate:
 4. compute J_val and audits.
 
 ```python
-from pacer_framework import open_loop_submetrics, blocker_flags_from_open_loop, evaluate_candidate, select_candidate
+from pacer_framework import (
+    blocker_flags_from_open_loop,
+    component_balanced_j_val,
+    evaluate_candidate,
+    open_loop_submetrics,
+    select_candidate,
+    validate_validation_row,
+)
 
-# Build validation_rows from your hook outputs, then:
-eval_result = evaluate_candidate(validation_rows, weight_manifest=manifest, w_max=eta.w_max)
+# Build validation_rows from your hook outputs. For a paper-faithful selector,
+# validate strict rows and include blocker flags plus align/no_regression
+# submetrics before scoring. Compute the reference policy component scores once.
+strict_errors = [
+    err
+    for row in validation_rows
+    for err in validate_validation_row(row, strict_paper=True)
+]
+assert not strict_errors
+_, _, reference_manifest = component_balanced_j_val(reference_validation_rows)
+
+eval_result = evaluate_candidate(
+    validation_rows=validation_rows,
+    weight_manifest=manifest,
+    w_max=eta.w_max,
+    reference_component_scores=reference_manifest["component_scores"],
+    delta_reg=0.05,
+    require_reference_component_scores=True,
+)
 selected = select_candidate({"candidate": eval_result["j_val"]}, {"candidate": eval_result["feasible"]})
 ```
 

@@ -436,6 +436,7 @@ def candidate_feasibility(
     reference_component_scores: Mapping[str, float] | None = None,
     delta_reg: float = 0.0,
     n_eff_min: float = 1.0,
+    require_reference_component_scores: bool = False,
 ) -> tuple[bool, dict[str, bool]]:
     """F(eta) = A_audit * A_wrong * A_safe * A_reg (eq:app_feasibility).
 
@@ -443,8 +444,11 @@ def candidate_feasibility(
     count, finite loss denominator, max weight within the clip, non-collapsed
     n_eff). A_wrong / A_safe demand zero wrong-target / unsafe leakage over the
     validation rows. A_reg checks every reported component against the
-    reference policy under the fixed margin; it passes vacuously when no
-    reference scores are supplied.
+    reference policy under the fixed margin. General framework calls may omit
+    reference scores, in which case the no-regression check is recorded as
+    vacuously passing. Paper-faithful selection should pass
+    ``require_reference_component_scores=True`` so missing reference scores fail
+    instead of silently skipping A_reg.
     """
     loss_normalizer = float(weight_manifest.get("loss_normalizer", 0.0))
     checks: dict[str, bool] = {
@@ -462,6 +466,9 @@ def candidate_feasibility(
             float(candidate_component_scores.get(component, 0.0)) >= float(ref) - float(delta_reg)
             for component, ref in reference_component_scores.items()
         )
+    elif require_reference_component_scores:
+        checks["A_reg_no_regression"] = False
+        checks["A_reg_reference_scores_present"] = False
     else:
         checks["A_reg_no_regression"] = True
     return all(checks.values()), checks
@@ -488,6 +495,7 @@ def evaluate_candidate(
     reference_component_scores: Mapping[str, float] | None = None,
     delta_reg: float = 0.0,
     n_eff_min: float = 1.0,
+    require_reference_component_scores: bool = False,
 ) -> dict[str, Any]:
     """One-call post-training evaluation of a trained candidate.
 
@@ -495,6 +503,10 @@ def evaluate_candidate(
     the feasibility predicate F(eta) (eq:app_feasibility) against its
     pre-training weight manifest. Feed the per-candidate results to
     ``select_candidate`` / ``reporting.candidate_ranking_table``.
+
+    For paper-faithful selection, pass ``reference_component_scores`` from the
+    frozen reference policy and set ``require_reference_component_scores=True``
+    so the no-regression audit cannot be skipped accidentally.
     """
     j_val, scores, manifest = component_balanced_j_val(validation_rows, submetric_weights=submetric_weights)
     feasible, checks = candidate_feasibility(
@@ -505,6 +517,7 @@ def evaluate_candidate(
         reference_component_scores=reference_component_scores,
         delta_reg=delta_reg,
         n_eff_min=n_eff_min,
+        require_reference_component_scores=require_reference_component_scores,
     )
     return {
         "j_val": j_val,
