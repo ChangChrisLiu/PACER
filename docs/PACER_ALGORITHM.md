@@ -28,11 +28,16 @@ validation views for VLA policy improvement.
 6. Clip/floor final weights according to role and candidate eta settings.
 7. Expose weights as training/export fields such as `returns.loss_weight`.
 8. Train candidate policies in the external VLA stack.
-9. Score candidates on validation data with the current default trajectory-robust
-   PACER calculation (`trajectory_robust_component_role_q25_A_plus`): outcome
-   and no-regression terms remain nonzero, whole-chunk EEF/TCP trajectory
-   alignment is the primary process-fidelity family, blocked rows score zero,
-   and the scalar score is the lower quartile over component×role cells.
+9. Score candidates on validation data. Audited candidate selection
+   (`evaluate_candidate` / `select_candidate`) defaults to the endpoint-weighted
+   strict `component_balanced_j_val` protocol. The current default
+   trajectory-robust PACER calculation
+   (`trajectory_robust_component_role_q25_A_plus`) is exposed by
+   `robust_profile_j_val`: outcome and no-regression terms remain nonzero,
+   whole-chunk EEF/TCP trajectory alignment is the primary process-fidelity
+   family, blocked rows score zero, and the scalar score is the lower quartile
+   over component×role cells. Report A+ as a process-fidelity diagnostic unless
+   it was frozen before a held-out evaluation.
 10. Optionally propose the next eta candidate with Bayesian optimization.
 
 ## Main code entry points
@@ -76,7 +81,9 @@ explicit profile uses:
 trajectory_robust_component_role_q25_A_plus
 ```
 
-This default A+ profile uses three factor families:
+This default A+ profile uses three factor families and should receive
+whole-chunk `align` values produced with
+`open_loop_submetrics(..., reference_alignment_mode="trajectory")`:
 
 ```text
 outcome    = mean(progress, proximity, terminal)

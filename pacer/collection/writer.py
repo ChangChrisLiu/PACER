@@ -34,9 +34,9 @@ def _validate_feedback_for_write(
 
     The collection prompt already filters the menu, but operators can be
     re-prompted, scripts can be patched mid-collection, or trials can be
-    saved via direct-call paths. This re-check enforces the binding
-    requirement from CONSENSUS_PHASE_A.md / LOKI_RECONCILIATION_V1_1.md §C1:
-    "impossible pairs cannot be saved as clean accepted feedback".
+    saved via direct-call paths. This re-check enforces the public data
+    contract: impossible `(block, stop_source, label)` triples cannot be saved
+    as clean accepted feedback.
     """
     if feedback.label in LABELS_REQUIRING_NOTE and not feedback.note.strip():
         raise InvalidFeedbackForWrite(

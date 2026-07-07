@@ -1,5 +1,5 @@
 # Example only. Replace all paths/endpoints with your local runtime.
-project: pacer-prepublication
+project: pacer-example
 base_model:
   family: pi0.5
   model_id: pi05_base_example

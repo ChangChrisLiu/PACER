@@ -35,6 +35,7 @@ secrets.*
 .local/
 agent_reviews/
 .claude-flow/
+demo_output/
 PACER_Framework/demo_output/
 
 # Exception to the *.jsonl rule above: contract-valid example templates that

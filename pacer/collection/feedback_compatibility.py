@@ -7,9 +7,8 @@ physical impossibilities (e.g. `skill_grasp_failed` after `manual_stop`, where
 the skill never runs). The collection prompt soft-filters the menu against
 this table, and the writer hard-rejects incompatible pairs.
 
-See LOKI_RECONCILIATION_V1_1.md §C1 and the Phase-A consensus for the
-binding requirement: "impossible pairs cannot be saved as clean accepted
-feedback".
+Binding requirement: impossible `(stop_source, label)` pairs cannot be saved
+as clean accepted feedback.
 """
 from __future__ import annotations
 

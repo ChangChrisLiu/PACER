@@ -82,7 +82,11 @@ trajectory_robust_component_role_q25_B
 
 ## Computing scores
 
-GitHub tracks the scoring method, not experiment-specific result tables. To compute scores for a candidate set, collect one validation-row list per method and call `robust_profile_j_val` on each list:
+GitHub tracks the scoring method, not experiment-specific result tables. To compute scores for a candidate set, collect one validation-row list per method and call `robust_profile_j_val` on each list.
+
+For A+, compute the `align` submetric with `open_loop_submetrics(..., reference_alignment_mode="trajectory")` so the primary trajectory family scores whole-chunk EEF/TCP alignment rather than endpoint net direction. Endpoint-mode `align` is still the strict-protocol eq:app_align definition, but it is not the intended whole-chunk A+ process-fidelity input.
+
+Trajectory mode requires at least two positions in both the predicted and matched reference chunk. For shorter chunks, omit `reference_positions` for that row so `align` is dropped and the remaining λ coefficients renormalize, rather than silently mixing endpoint-mode `align` into an A+ table.
 
 ```python
 from pacer_framework.validation import robust_profile_j_val

@@ -2,6 +2,9 @@
 
 This module is offline-only. It records how to combine original SFT checkpoints
 with PACER weighted views without launching training or touching hardware.
+Some method identifiers in this module are historical manifest IDs kept for
+compatibility with saved private runs; they are not required vocabulary for the
+generic PACER framework.
 """
 from __future__ import annotations
 

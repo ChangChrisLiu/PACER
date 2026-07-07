@@ -48,6 +48,10 @@ sub = open_loop_submetrics(
     target_point=row_target_point, component=row_component,
     phase_ending=row_phase_ending, stop_emitted=predicted_stop_emitted,
     reference_positions=matched_reference_positions,   # omit if no match
+    # Use reference_alignment_mode="trajectory" when this row will be scored
+    # with the trajectory-robust A+ profile in §3. Omit the argument, or pass
+    # "endpoint", for the strict-protocol endpoint/net-direction eq:app_align.
+    reference_alignment_mode="trajectory",
 )
 sub = with_no_regression(sub, reference_policy_submetrics, delta_reg=0.05)
 flags = blocker_flags_from_open_loop(
@@ -78,14 +82,26 @@ Both are omitted automatically when unavailable (the λ coefficients renormalize
 per row). A diagnostic action-vector cosine, if you log one, must stay out of
 the submetrics dict used for ranking.
 
+For the endpoint-weighted strict `component_balanced_j_val` protocol, the
+endpoint/net-direction `align` definition matches eq:app_align. For the
+trajectory-robust A+ profile in §3, compute `align` with
+`reference_alignment_mode="trajectory"` so the trajectory family scores
+whole-chunk EEF/TCP process fidelity rather than endpoint net direction.
+
+Trajectory mode requires at least two positions in both the predicted and matched
+reference chunk. For shorter chunks, omit `reference_positions` for that row so
+`align` is dropped and the remaining λ coefficients renormalize, rather than
+silently mixing endpoint-mode `align` into an A+ table.
+
 ## 3. Default trajectory-robust PACER calculation
 
 The current default process-aware PACER calculation is the trajectory-robust
 A+ profile implemented by `robust_profile_j_val`. This is separate from the
-legacy endpoint/outcome-weighted strict `component_balanced_j_val` diagnostic.
-A+ uses nonzero outcome and no-regression terms, makes whole-chunk EEF/TCP
-trajectory alignment the primary process-fidelity term, and aggregates by the
-lower quartile over component×role cells.
+endpoint/outcome-weighted strict `component_balanced_j_val` protocol, which
+remains the default scorer inside `evaluate_candidate` / `select_candidate` for
+audited candidate selection. A+ uses nonzero outcome and no-regression terms,
+makes whole-chunk EEF/TCP trajectory alignment the primary process-fidelity
+term, and aggregates by the lower quartile over component×role cells.
 
 ```python
 from pacer_framework import robust_profile_j_val
@@ -94,10 +110,15 @@ score, row_scores, manifest = robust_profile_j_val(validation_rows)
 assert manifest["profile"] == "trajectory_robust_component_role_q25_A_plus"
 ```
 
+A+ expects the `align` submetric to be computed in whole-chunk mode
+(`reference_alignment_mode="trajectory"` in §1). With endpoint-mode `align`, the
+same API call is still valid, but it scores endpoint eq:app_align rather than
+whole-chunk process fidelity.
+
 See `docs/TRAJECTORY_ROBUST_SCORING.md` for the exact default parameters and
 score-computation recipe.
 
-## 4. Legacy J_val, audits, and selection
+## 4. Strict J_val, audits, and selection (endpoint-weighted protocol)
 
 ```python
 from pacer_framework import (component_balanced_j_val, evaluate_candidate,
@@ -126,8 +147,11 @@ Semantics: v_j = B_j · renormalized weighted mean of the
 applicable submetrics (eq:row_val); J_val = mean over components of
 per-component mean row scores (eq:j_val); feasibility F(η) =
 A_audit·A_wrong·A_safe·A_reg with zero tolerance on wrong-target and unsafe
-leakage (eq:app_feasibility). J_val is a model-selection diagnostic — never a
-training loss and never a substitute for deployment success.
+leakage (eq:app_feasibility). J_val is a model-selection diagnostic — never a training loss and never a
+substitute for deployment success. J_val values are comparable only across
+candidates scored on the identical, pre-frozen validation row set; freeze the
+scoring-subset row manifest before any candidate is scored and reuse it for
+every candidate and baseline.
 
 ## 5. Held-out comparison, exactly as reported
 

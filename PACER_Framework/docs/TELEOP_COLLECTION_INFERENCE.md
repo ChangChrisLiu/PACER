@@ -1,6 +1,6 @@
 # Teleop, ZMQ collection, and inference workflow
 
-This document explains how PACER/TRACE-style data collection is meant to work
+This document explains how PACER-style data collection is meant to work
 when the GitHub repo is used on a new robot computer.
 
 There are two layers:
@@ -72,7 +72,7 @@ Use separate terminals/processes so failures are isolated.
 T1 robot server     : launches robot controller / ZMQ robot endpoint
 T2 camera servers   : launches wrist + base camera ZMQ endpoints
 T3 model server     : launches one VLA policy server/checkpoint
-T4 collector/eval   : runs PACER/TRACE collection or rollout-eval script
+T4 collector/eval   : runs PACER collection or rollout-eval script
 ```
 
 Default ports from the current integration scripts:
@@ -117,8 +117,9 @@ It wraps the runtime `JoystickAgent` and `ZMQClientRobot`:
   - timestamp
 - snapshots become target/failure/reference points.
 
-For a new repo user, implement the same shape in `RobotHooks` if not using the
-SEA-VLA runtime directly.
+For a new repo user, implement the same shape in `RobotHooks` if you are not
+adapting the included runtime-adapter layer (`pacer/` + `scripts/robot_runtime/`)
+directly.
 
 ## 4. Data-collection modes
 

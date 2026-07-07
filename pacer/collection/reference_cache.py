@@ -10,8 +10,8 @@ Two caches live under `<output_root>/<config_id>/`:
    Implemented by ``CorrectorStartPoseCache``.
 
 Both caches are JSON files persisted with the atomic-write pattern from
-``trial_plan.atomic_write_json``. Schemas match the agreed-upon implementation
-designs from internal PACER protocol reviews.
+``trial_plan.atomic_write_json``. Schemas are intentionally explicit so dry-run,
+collection, and downstream weighting code agree on target-group identity.
 
 Target-group schedule resolvers (``resolve_target_group``,
 ``resolve_planner_skill_target_group``) are pure functions so the planner

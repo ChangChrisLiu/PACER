@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# PACER pre-publication integration script.
+# PACER robot-runtime integration reference script.
 # This script is copied from the external robot runtime and expects the robot/camera/OpenPI
 # adapters from PACER to be importable. It is intentionally included as an integration
 # reference, not as a standalone hardware driver.
@@ -51,7 +51,7 @@ DEFAULT_OUTPUT_ROOT = "data/pacer_rollout_eval"
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(
-        description="PACER PACER rollout-only model evaluation"
+        description="PACER rollout-only model evaluation"
     )
     ap.add_argument(
         "--run-id",
@@ -252,7 +252,7 @@ def _build_session_meta(
 
 def print_plan(plan: list, args: argparse.Namespace) -> None:
     print("=" * 72)
-    print("PACER PACER rollout-only model evaluation")
+    print("PACER rollout-only model evaluation")
     print(f"run_id: {args.run_id}")
     print(f"components: {args.components}")
     print(f"configs: {args.configs}")

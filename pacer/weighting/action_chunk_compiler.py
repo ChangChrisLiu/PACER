@@ -1977,7 +1977,7 @@ def _readme(report: Mapping[str, Any]) -> str:
 
 Schema: `{ACTION_CHUNK_SCHEMA_VERSION}`
 
-This directory is a read-only offline compiler product for PACER PACER
+This directory is a read-only offline compiler product for PACER
 Pi0.5/OpenPI fixed-geometry preparation. It is not a training run and does not authorize
 live robot control.
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# PACER pre-publication integration script.
+# PACER robot-runtime integration reference script.
 # This script is copied from the external robot runtime and expects the robot/camera/OpenPI
 # adapters from PACER to be importable. It is intentionally included as an integration
 # reference, not as a standalone hardware driver.
 
 """PACER collection SFT rollout collection entrypoint.
 
-This script provides the operator workflow described in
-the internal PACER PACER collection implementation plan.
+This script provides the PACER operator workflow for rollout, correction,
+and clean-demonstration collection in compatible robot-runtime integrations.
 
 Hardware modes intentionally keep the physical joystick mapping unchanged. The
 script interprets L25 differently by state: target/failure pose capture rather
@@ -57,7 +57,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - integration-only fallba
 def _require_robot_runtime_runtime() -> None:
     if _ROBOT_RUNTIME_IMPORT_ERROR is not None:
         raise SystemExit(
-            "This is a PACER pre-publication robot-runtime integration reference. "
+            "This is a PACER robot-runtime integration reference. "
             "Live collection requires the full external robot runtime on PYTHONPATH. "
             f"Original import error: {_ROBOT_RUNTIME_IMPORT_ERROR}"
         )
@@ -148,8 +148,8 @@ FEEDBACK_SCHEMA_VERSION = "pacer_v07"
 # attempts within one trial: each corrector_only trial executes a single
 # model rollout (up to the configured ``--max-steps``, currently 600) and
 # the post-trial reset returns the robot to the per-component temporary
-# ``failure_start`` pose rather than the global configured home. See
-# the internal corrector-only single-trial redesign note.
+# ``failure_start`` pose rather than the global configured home. This keeps
+# each corrector trial independent while preserving the failure-state start.
 CORRECTOR_PROTOCOL_VERSION = "pacer_corrector_v10_single_trial"
 CORRECTOR_ROLLOUTS_PER_TRIAL = 1
 # Compatibility aliases for older tests/loaders that still read the historical
@@ -208,9 +208,8 @@ V07_MANUAL_STOP_FEEDBACK_LABELS = [
 # (success_stop_token / near_miss_stop_token / wrong_target /
 # bad_orientation) remain valid in `feedback_compatibility.py` so saved
 # V0.6 trials still load, but they are no longer presented to the live
-# operator. See `the internal PACER config_001 issue-A review notes`
-# feedback_rtde_investigation_20260521.md` for the operator-confused
-# 9-item menu the user hit on 2026-05-21.
+# operator. The compact menu prevents ambiguous stop-token outcomes from
+# being saved as clean feedback under incompatible labels.
 V07_PLANNER_ONLY_MODEL_STOP_TOKEN_FEEDBACK_LABELS = [
     "success",
     "near_but_not_accurate",
@@ -554,7 +553,7 @@ def _build_query_diag_fn_for_test():
 
 
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="PACER PACER collection rollout collection")
+    ap = argparse.ArgumentParser(description="PACER collection rollout entrypoint")
     ap.add_argument("--config-id", required=True, help="Configuration number/id, e.g. 1 or config_001")
     ap.add_argument(
         "--phase-block",
@@ -738,7 +737,7 @@ def print_plan(plan: list[TrialSpec], args: argparse.Namespace) -> None:
     for trial in plan:
         counts[trial.block] = counts.get(trial.block, 0) + 1
     print("=" * 72)
-    print("PACER PACER collection collection plan")
+    print("PACER collection plan")
     print(f"config_id: {normalize_config_id(args.config_id)}")
     print(f"components: {args.components}")
     print(f"blocks: {counts}")
