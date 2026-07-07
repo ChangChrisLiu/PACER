@@ -34,6 +34,7 @@ FORBIDDEN_EXACT_B64 = (
     "cHJlLXB1YmxpY2F0aW9u",
     "UHJlLXB1YmxpY2F0aW9u",
     "cHJlcHVi",
+    "aW50ZXJuYWwgY29ycmVjdG9yLW9ubHkgc2luZ2xlLXRyaWFsIHJlZGVzaWduIG5vdGU=",
 )
 
 FORBIDDEN_PATTERNS = (

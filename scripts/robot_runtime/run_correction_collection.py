@@ -1655,8 +1655,8 @@ class LiveCollector:
         Replaces the V0.9 3-auto-attempt loop. The quantity being measured
         is whether a single corrector rollout can complete the task within
         the configured max_steps (currently 600). Multiple opportunities
-        live in DIFFERENT TRIALS, not attempts within one trial. See
-        the internal corrector-only single-trial redesign note.
+        live in DIFFERENT TRIALS, not attempts within one trial. This encodes
+        the corrector-only single-trial protocol.
 
         Behaviour:
 
