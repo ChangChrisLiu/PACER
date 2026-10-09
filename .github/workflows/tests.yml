@@ -1,0 +1,52 @@
+name: tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  installed-workflow:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+        package: [framework, runtime]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install one distribution
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip build
+          if [ "${{ matrix.package }}" = framework ]; then
+            python -m pip install './PACER_Framework[dev]'
+          else
+            python -m pip install '.[test]'
+          fi
+      - name: Run public tests
+        shell: bash
+        run: |
+          if [ "${{ matrix.package }}" = framework ]; then
+            python -m pytest PACER_Framework/tests -q
+          else
+            python -m pytest tests PACER_Framework/tests -q
+          fi
+      - name: Run installed commands outside the checkout
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          python -m pacer_framework.check_setup
+          pacer-score --write-config scoring.json
+          pacer-demo --scoring-config scoring.json --out-dir demo-output
+      - name: Build and compare shared framework wheel sources
+        shell: bash
+        run: |
+          python -m build --wheel --outdir "$RUNNER_TEMP/wheels-runtime"
+          python -m build --wheel PACER_Framework --outdir "$RUNNER_TEMP/wheels-framework"
+          python tests/check_distribution_contents.py "$RUNNER_TEMP/wheels-runtime" "$RUNNER_TEMP/wheels-framework"

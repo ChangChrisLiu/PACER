@@ -26,13 +26,31 @@ import math
 from typing import Any, Mapping, Sequence
 
 from pacer_framework.evidence import EPS, d_ref_for, geometric_distances, r_target_for
-from pacer_framework.validation import geometric_row_score, no_regression
+from pacer_framework.configuration import ScoringConfig, resolve_scoring_config
+from pacer_framework.validation import no_regression_from_submetrics
 
 Point = Sequence[float]
 
 
 def _clip01(value: float) -> float:
-    return max(0.0, min(1.0, float(value)))
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("alignment calculation produced a non-finite value")
+    return max(0.0, min(1.0, number))
+
+
+def _finite_xyz(point: Point) -> bool:
+    try:
+        return len(point) == 3 and all(
+            not isinstance(value, bool) and math.isfinite(float(value)) for value in point
+        )
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
+def _check_positions(positions: Sequence[Point]) -> None:
+    if len(positions) == 0 or not all(_finite_xyz(point) for point in positions):
+        raise ValueError("positions must contain finite three-dimensional EEF/TCP points")
 
 
 def _norm(vec: Sequence[float]) -> float:
@@ -56,6 +74,7 @@ def chunk_direction(positions: Sequence[Point]) -> list[float]:
     """Net displacement direction of a TCP chunk (endpoint minus start)."""
     if len(positions) < 1:
         raise ValueError("chunk_direction requires at least one position")
+    _check_positions(positions)
     return _sub(positions[-1], positions[0])
 
 
@@ -63,6 +82,8 @@ def _common_step_deltas(a: Sequence[Point], b: Sequence[Point]) -> tuple[list[li
     common = min(len(a), len(b))
     if common < 2:
         raise ValueError("chunk trajectory alignment requires at least two positions in each chunk")
+    _check_positions(a)
+    _check_positions(b)
     a_steps = [_sub(a[i + 1], a[i]) for i in range(common - 1)]
     b_steps = [_sub(b[i + 1], b[i]) for i in range(common - 1)]
     return a_steps, b_steps
@@ -98,6 +119,8 @@ def reference_alignment(
 
 def target_direction_cosine(positions: Sequence[Point], target_point: Point) -> float:
     """Direction submetric — cosine between chunk displacement and start-to-target."""
+    if not _finite_xyz(target_point):
+        raise ValueError("target_point must be a finite three-dimensional point")
     return direction_cosine01(chunk_direction(positions), _sub(target_point, positions[0]))
 
 
@@ -113,7 +136,8 @@ def open_loop_submetrics(
     phase_ending: bool = False,
     stop_emitted: bool | None = None,
     reference_positions: Sequence[Point] | None = None,
-    reference_alignment_mode: str = "endpoint",
+    reference_alignment_mode: str | None = None,
+    scoring_config: ScoringConfig | None = None,
 ) -> dict[str, float]:
     """Bounded submetrics for one validation row (app:valscore).
 
@@ -121,13 +145,21 @@ def open_loop_submetrics(
     as the training evidence, evaluated on the candidate-predicted chunk. The
     stop submetric is included only for phase-ending rows (it is omitted and
     the remaining coefficients renormalize otherwise), and the align submetric
-    only when a matched reference chunk exists. By default align preserves the
-    historical endpoint/net-direction definition. Pass
-    ``reference_alignment_mode="trajectory"`` to score whole EEF/TCP action-
-    chunk trajectory alignment over the common valid horizon.
+    only when a matched reference chunk exists. Whole-chunk EEF/TCP trajectory
+    alignment is the default. Endpoint/net-direction alignment remains an
+    explicit option. Both trajectories must contain a start and a successor
+    position for trajectory mode; short inputs raise rather than changing the
+    applicable metric set silently.
     """
+    config = resolve_scoring_config(
+        scoring_config, reference_alignment_mode=reference_alignment_mode,
+    )
+    reference_alignment_mode = config.reference_alignment_mode
     if len(predicted_positions) < 1:
         raise ValueError("open_loop_submetrics requires at least one predicted position")
+    _check_positions(predicted_positions)
+    if not _finite_xyz(target_point):
+        raise ValueError("target_point must be a finite three-dimensional point")
     r_t = float(r_target) if r_target is not None else r_target_for(component)
     d_r = float(d_ref) if d_ref is not None else d_ref_for(component, r_t)
 
@@ -160,8 +192,9 @@ def with_no_regression(
     candidate_submetrics: Mapping[str, float],
     reference_submetrics: Mapping[str, float],
     *,
-    delta_reg: float,
+    delta_reg: float | None = None,
     submetric_weights: Mapping[str, float] | None = None,
+    scoring_config: ScoringConfig | None = None,
 ) -> dict[str, float]:
     """Append the eq:app_reg no-regression submetric to a candidate's submetrics.
 
@@ -169,10 +202,11 @@ def with_no_regression(
     policy under the same geometric coefficients, then compared with the fixed
     margin delta_reg.
     """
-    v_candidate = geometric_row_score(candidate_submetrics, submetric_weights=submetric_weights)
-    v_reference = geometric_row_score(reference_submetrics, submetric_weights=submetric_weights)
     out = dict(candidate_submetrics)
-    out["no_regression"] = no_regression(v_candidate, v_reference, delta_reg=delta_reg)
+    out["no_regression"] = no_regression_from_submetrics(
+        candidate_submetrics, reference_submetrics, scoring_config=scoring_config,
+        submetric_weights=submetric_weights, delta_reg=delta_reg,
+    )
     return out
 
 
@@ -219,6 +253,9 @@ def blocker_flags_from_open_loop(
     """
     if len(predicted_positions) < 1:
         raise ValueError("blocker_flags_from_open_loop requires at least one predicted position")
+    _check_positions(predicted_positions)
+    if not _finite_xyz(target_point):
+        raise ValueError("target_point must be a finite three-dimensional point")
     r_t = float(r_target) if r_target is not None else r_target_for(component)
     endpoint = predicted_positions[-1]
     inside_terminal = _norm(_sub(endpoint, target_point)) <= r_t and orientation_ok is not False

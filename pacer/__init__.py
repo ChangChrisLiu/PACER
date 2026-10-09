@@ -6,4 +6,4 @@ Runtime-adapter code package. The public entry points live under:
 - pacer.rollout_eval: fixed-model rollout evaluation schemas/writer utilities.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

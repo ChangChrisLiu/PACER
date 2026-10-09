@@ -74,6 +74,34 @@ has a more detailed method-to-code map in
 For a framework-wide verification matrix across both layers, see
 [`docs/FRAMEWORK_VERIFICATION.md`](docs/FRAMEWORK_VERIFICATION.md).
 
+## Configurable validation scoring
+
+The default is a gated direct score with component-balanced mean aggregation.
+Whole-chunk EEF/TCP trajectory alignment is the construction default. One
+`ScoringConfig` is shared across metric construction, baseline comparison,
+scoring and audits. Coefficients and other scoring options can be loaded from
+JSON or set through the Python API; training parameters remain separate.
+
+After either installation option:
+
+```bash
+python -m pacer_framework.demo --out-dir .local/demo-default
+python -m pacer_framework.scoring --write-config .local/scoring.json
+# Edit the generated configuration for your application.
+python -m pacer_framework.demo --scoring-config .local/scoring.json --out-dir .local/demo-custom
+```
+
+These are synthetic, no-hardware examples. See
+[`SCORING_CONFIGURATION.md`](PACER_Framework/docs/SCORING_CONFIGURATION.md) for
+configuration, row scoring, reference-aware rescoring and complete candidate
+selection. Explicit diagnostic profiles remain available for compatibility;
+they are not the default selector.
+
+Install exactly one distribution per environment: the minimal framework below,
+or the full runtime package, which already includes the same framework source.
+Do not install both over one another. On systems whose Python lacks `venv`
+support, install the distribution's venv support package or use uv/conda.
+
 ## Install the generic framework with venv
 
 Use this path for a lightweight local environment and for first-time framework

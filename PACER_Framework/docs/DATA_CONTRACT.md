@@ -2,9 +2,9 @@
 
 This is the prose companion to the executable contract in
 `pacer_framework/schema.py` (`validate_training_row`, `validate_validation_row`,
-`training_row_warnings`, and the `*_template()` builders). If the validators
-accept your records, the whole pipeline — evidence, gates, weights, splits,
-validation scoring, baselines — runs on them.
+`training_row_warnings`, and the `*_template()` builders). The row validators
+check input structure. Scoring configuration and candidate audits additionally
+check applicability, matching reference support and feasibility before selection.
 
 Units and frames: positions are `[x, y, z]` in meters in the **robot base
 frame**. Roles may use either the standard framework vocabulary
@@ -65,7 +65,17 @@ or supplies them directly:
 | `row_id`, `component` | yes | identity |
 | `role` / `sample_role` | yes | scoring set = {clean, correction, auto_success, partial}; failure/excluded rows are audit-only |
 | `submetrics` | yes | bounded values among `progress, proximity, terminal, direction, stop, align, no_regression`; absent metrics are omitted and λ renormalizes |
-| `wrong_target`, `non_target_exclusion`, `invalid_orientation`, `unsafe` | recommended | blocker flags `B_j` (eq:app_bj); absent = false |
+| `wrong_target`, `non_target_exclusion`, `invalid_orientation`, `unsafe` | required for full audits | explicit boolean blocker inputs; score-only compatibility may omit them, but missing inputs cannot pass candidate feasibility |
+| `reference_submetrics` | for reference-aware rescoring | baseline-policy geometric metrics; no-regression is recomputed using the active configuration |
+| `reference_alignment_mode` | for cached align values | declares trajectory or endpoint representation; a conflicting configuration is rejected |
+
+Reference geometry and the recorded trajectory used for alignment are distinct
+inputs. Active geometric support must match for candidate and baseline
+no-regression. Cached-only indicators are identified in score manifests and do
+not establish that they were constructed under a newly supplied configuration.
+`evaluate_candidate(reference_validation_rows=...)` matches positive row IDs,
+components and roles and scores both sides with one config. See
+`SCORING_CONFIGURATION.md` for the preferred workflow and audit boundary.
 
 ## 3. Candidate configuration (η)
 

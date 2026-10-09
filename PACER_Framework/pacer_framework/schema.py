@@ -23,6 +23,7 @@ import math
 from typing import Any, Mapping
 
 from pacer_framework.eta import EVIDENCE_KEYS
+from pacer_framework.configuration import GEOMETRIC_SUBMETRICS
 from pacer_framework.evidence import PROVENANCE_FLAGS, target_consistency
 from pacer_framework.roles import normalize_role
 from pacer_framework.validation import BLOCKER_FLAGS, SUBMETRIC_ALIASES, VALIDATION_SUBMETRICS
@@ -150,7 +151,8 @@ def validate_validation_row(row: Mapping[str, Any], *, strict_paper: bool = Fals
     In default mode this checks that any supplied values are well-formed. In
     ``strict_paper`` mode it also requires every audit/blocker dimension to be
     explicitly present and requires the paper-critical `align` and
-    no-regression (`no_regression`, alias `reg`) validation submetrics. Use
+    no-regression (`no_regression`, alias `reg`) submetrics, or reference
+    geometry from which no-regression can be derived under the scorer config. Use
     strict mode before reporting a result as paper-framework `J_val` rather
     than as a reduced diagnostic.
     """
@@ -179,7 +181,31 @@ def validate_validation_row(row: Mapping[str, Any], *, strict_paper: bool = Fals
         if strict_paper:
             for required in ("align", "no_regression"):
                 if required not in canonical_keys:
-                    errors.append(f"strict paper validation row requires submetric '{required}'")
+                    reference = row.get("reference_submetrics")
+                    derivable = required == "no_regression" and isinstance(reference, Mapping) and any(
+                        key in submetrics and _is_number(reference.get(key))
+                        for key in GEOMETRIC_SUBMETRICS
+                    )
+                    if not derivable:
+                        errors.append(f"strict paper validation row requires submetric '{required}' or reference geometry")
+    if "reference_submetrics" in row:
+        reference = row["reference_submetrics"]
+        if not isinstance(reference, Mapping):
+            errors.append("reference_submetrics must be a mapping")
+        else:
+            for key, value in reference.items():
+                canonical = SUBMETRIC_ALIASES.get(str(key), str(key))
+                if canonical not in VALIDATION_SUBMETRICS:
+                    errors.append(f"unknown reference submetric {key!r}")
+                elif not _is_number(value) or not 0.0 <= float(value) <= 1.0:
+                    errors.append(f"reference_submetrics[{key!r}] must be a bounded number")
+    if "reference_alignment_mode" in row:
+        mode = row["reference_alignment_mode"]
+        if not isinstance(mode, str) or mode not in {
+            "trajectory", "whole_chunk", "whole_chunk_trajectory",
+            "endpoint", "endpoint_net_direction", "net_direction",
+        }:
+            errors.append("reference_alignment_mode must identify trajectory or endpoint alignment")
     for flag in BLOCKER_FLAGS:
         if flag in row and not isinstance(row[flag], bool):
             errors.append(f"blocker flag {flag!r} must be boolean")

@@ -3,6 +3,16 @@
 This is the shortest path for someone who downloads the repo and wants to try
 PACER on their own system.
 
+For a runnable synthetic workflow before integrating hardware:
+
+```bash
+python -m pacer_framework.demo --out-dir .local/demo
+python -m pacer_framework.scoring --write-config scoring.json
+```
+
+See `SCORING_CONFIGURATION.md` for editable configuration and the shared scoring
+contract. Then connect your own robot/model hooks below.
+
 ## 1. Implement your hooks
 
 Create a small file in your project, e.g. `my_pacer_hooks.py`, that implements:
@@ -85,33 +95,18 @@ For each validation row and trained candidate:
 4. compute J_val and audits.
 
 ```python
-from pacer_framework import (
-    blocker_flags_from_open_loop,
-    component_balanced_j_val,
-    evaluate_candidate,
-    open_loop_submetrics,
-    select_candidate,
-    validate_validation_row,
-)
+from pacer_framework import ScoringConfig, evaluate_candidate, select_candidate, validate_validation_row
 
-# Build validation_rows from your hook outputs. For a paper-faithful selector,
-# validate strict rows and include blocker flags plus align/no_regression
-# submetrics before scoring. Compute the reference policy component scores once.
-strict_errors = [
-    err
-    for row in validation_rows
-    for err in validate_validation_row(row, strict_paper=True)
-]
-assert not strict_errors
-_, _, reference_manifest = component_balanced_j_val(reference_validation_rows)
-
+config = ScoringConfig.load("scoring.json")
+errors = [err for row in validation_rows for err in validate_validation_row(row)]
+assert not errors
+# Build candidate and baseline rows on the same logged observations and IDs.
 eval_result = evaluate_candidate(
     validation_rows=validation_rows,
+    reference_validation_rows=reference_validation_rows,
     weight_manifest=manifest,
     w_max=eta.w_max,
-    reference_component_scores=reference_manifest["component_scores"],
-    delta_reg=0.05,
-    require_reference_component_scores=True,
+    scoring_config=config,
 )
 selected = select_candidate({"candidate": eval_result["j_val"]}, {"candidate": eval_result["feasible"]})
 ```

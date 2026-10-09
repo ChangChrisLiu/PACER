@@ -1,200 +1,136 @@
-# Runbook 3 — Offline evaluation and hardware candidate selection (pipeline steps 6–7)
+# Offline evaluation and audited candidate selection
 
-Input: one trained model per candidate/baseline (Runbook 2) + the validation
-split with its rollout/reference EEF traces.
-Output: J_val per candidate, feasibility audits, the comparison tables, and
-**the one model that goes to the actual hardware run**.
+Input: trained candidates, a common validation split, declared task geometry and
+a baseline policy. Output: comparable component-balanced scores, full feasibility
+checks and the selected candidate or reference fallback.
 
-## 0. Adapter hooks for any robot/VLA stack
+## Integration boundary
 
-Before scoring candidates, implement the integration boundary in your own code
-(interfaces live in `pacer_framework/hooks.py`):
+Implement `VLAHooks.predict_action_chunk`, `RobotHooks.integrate_action_chunk`
+and `RobotHooks.target_region` for your model and robot. Inverse-normalize and
+integrate predicted chunks with the deployment action convention. PACER consumes
+base-frame EEF/TCP positions and metadata; it does not simulate contact dynamics
+or import model/robot SDKs in the portable framework.
 
-- `VLAHooks.predict_action_chunk(...)`: call your candidate VLA on a logged
-  observation. This can wrap OpenVLA, OpenPI, RT-style token decoders,
-  diffusion/flow action heads, or any custom model.
-- `RobotHooks.integrate_action_chunk(...)`: inverse-normalize and integrate the
-  predicted action chunk from the logged start TCP pose into base-frame EEF/TCP
-  positions. This is where joint-space vs EEF-delta actions, gripper channels,
-  bimanual arms, mobile bases, and simulator-specific conventions live.
-- `RobotHooks.target_region(...)` / `TargetRegion`: return the fixed target
-  region captured before scoring.
+A runnable synthetic, no-hardware workflow is available immediately:
 
-PACER starts after these hooks: it consumes standard validation rows, target
-regions, and TCP/EEF positions. It never imports your robot SDK or model code.
+```bash
+python -m pacer_framework.demo --out-dir .local/demo
+python -m pacer_framework.scoring --write-config .local/scoring.json
+python -m pacer_framework.demo --scoring-config .local/scoring.json --out-dir .local/configured-demo
+```
 
-## 1. Offline validation scoring (one pass per candidate)
+See [Scoring configuration](SCORING_CONFIGURATION.md) for the JSON/API contract.
+Defaults are generic starting values; customize and freeze your own protocol.
 
-For every scoring validation row (roles clean / correction / auto_success /
-partial; failure / excluded rows are audit-only):
+## 1. Build matched validation inputs
 
-1. Query the trained candidate ONCE on the logged observation with
-   deterministic decoding (fix the flow/sampling noise for all rows and all
-   candidates).
-2. Inverse-normalize the predicted action chunk and integrate it **open-loop
-   from the logged start TCP pose** with your robot's own action convention.
-   This is robot-specific and stays in your code; the framework consumes the
-   resulting base-frame TCP positions.
-3. Compute submetrics and blocker flags:
+Query policies deterministically on the same logged observations. Keep row
+support, reference matching, valid horizons, target regions, coordinate frames
+and blockers fixed across candidates. Row IDs identify observations, not the
+model that produced a prediction.
 
 ```python
-from pacer_framework import (
-    RobotHooks, TargetRegion, TrainerHooks, VLAHooks,
-    open_loop_submetrics, with_no_regression, blocker_flags_from_open_loop,
-)
+from pacer_framework import ScoringConfig, open_loop_submetrics, blocker_flags_from_open_loop
 
-sub = open_loop_submetrics(
+config = ScoringConfig.load("scoring.json")
+submetrics = open_loop_submetrics(
     predicted_positions,
-    target_point=row_target_point, component=row_component,
-    phase_ending=row_phase_ending, stop_emitted=predicted_stop_emitted,
-    reference_positions=matched_reference_positions,   # omit if no match
-    # Use reference_alignment_mode="trajectory" when this row will be scored
-    # with the trajectory-robust A+ profile in §3. Omit the argument, or pass
-    # "endpoint", for the strict-protocol endpoint/net-direction eq:app_align.
-    reference_alignment_mode="trajectory",
+    target_point=row_target_point,
+    component=row_component,
+    phase_ending=row_phase_ending,
+    stop_emitted=predicted_stop_emitted,
+    reference_positions=matched_reference_positions,
+    scoring_config=config,
 )
-sub = with_no_regression(sub, reference_policy_submetrics, delta_reg=0.05)
 flags = blocker_flags_from_open_loop(
-    predicted_positions, target_point=row_target_point, component=row_component,
-    non_target_regions=[{"point": p, "radius": r} for p, r in other_targets],
-    workspace_bounds={"min": [...], "max": [...]},
+    predicted_positions,
+    target_point=row_target_point,
+    component=row_component,
+    non_target_regions=declared_non_target_regions,
+    workspace_bounds=calibrated_workspace_bounds,
     orientation_ok=endpoint_orientation_within_tolerance,
     stop_source=predicted_stop_source,
 )
-validation_row = {"row_id": ..., "component": ..., "role": ..., "submetrics": sub, **flags}
+validation_row = {
+    "row_id": observation_id,
+    "component": row_component,
+    "role": row_role,
+    "submetrics": submetrics,
+    "reference_alignment_mode": config.reference_alignment_mode,
+    **flags,
+}
 ```
 
-## 2. How the EEF cosine / direction metrics work (eq:app_align)
+Build baseline-policy rows on the same inputs. The matched trajectory for align
+is not automatically the baseline policy for no-regression. Do not fabricate
+missing reference geometry or call every recorded partial trajectory an expert
+success demonstration.
 
-Two distinct cosines, both on **TCP/EEF positions in the base frame** — never
-on raw action vectors:
+## 2. Direction and whole-chunk alignment
 
-- **direction** submetric: cosine between the predicted chunk's net
-  displacement (endpoint − start) and the start→target direction, clipped to
-  [0, 1] (`alignment.target_direction_cosine`). Same form as the training
-  feature e_dir, evaluated on the candidate's open-loop chunk.
-- **align** submetric: when a matched reference chunk r(j) exists (a clean
-  demonstration or correction covering the same state), the cosine between the
-  generated chunk direction u_j and the reference chunk direction u_ref,
-  clipped to [0, 1] (`alignment.reference_alignment`) — eq:app_align verbatim.
+Direction compares net displacement with the start-to-target vector. Align
+compares concatenated adjacent EEF/TCP displacements over the common valid
+horizon. Endpoint alignment remains explicit. These are spatial EEF/TCP vectors,
+not mixed-unit raw joint/gripper actions.
 
-Both are omitted automatically when unavailable (the λ coefficients renormalize
-per row). A diagnostic action-vector cosine, if you log one, must stay out of
-the submetrics dict used for ranking.
+Trajectory mode requires a start and successor on both sides. A short matched
+trajectory is an input error, not a reason to silently remove alignment. If no
+matched reference exists under your declared applicability rule, omit it
+consistently across candidates. Non-phase-ending rows omit stop; observed
+zero-valued metrics remain in the score.
 
-For the endpoint-weighted strict `component_balanced_j_val` protocol, the
-endpoint/net-direction `align` definition matches eq:app_align. For the
-trajectory-robust A+ profile in §3, compute `align` with
-`reference_alignment_mode="trajectory"` so the trajectory family scores
-whole-chunk EEF/TCP process fidelity rather than endpoint net direction.
-
-Trajectory mode requires at least two positions in both the predicted and matched
-reference chunk. For shorter chunks, omit `reference_positions` for that row so
-`align` is dropped and the remaining λ coefficients renormalize, rather than
-silently mixing endpoint-mode `align` into an A+ table.
-
-## 3. Default trajectory-robust PACER calculation
-
-The current default process-aware PACER calculation is the trajectory-robust
-A+ profile implemented by `robust_profile_j_val`. This is separate from the
-endpoint/outcome-weighted strict `component_balanced_j_val` protocol, which
-remains the default scorer inside `evaluate_candidate` / `select_candidate` for
-audited candidate selection. A+ uses nonzero outcome and no-regression terms,
-makes whole-chunk EEF/TCP trajectory alignment the primary process-fidelity
-term, and aggregates by the lower quartile over component×role cells.
+## 3. Score and audit under one configuration
 
 ```python
-from pacer_framework import robust_profile_j_val
-
-score, row_scores, manifest = robust_profile_j_val(validation_rows)
-assert manifest["profile"] == "trajectory_robust_component_role_q25_A_plus"
-```
-
-A+ expects the `align` submetric to be computed in whole-chunk mode
-(`reference_alignment_mode="trajectory"` in §1). With endpoint-mode `align`, the
-same API call is still valid, but it scores endpoint eq:app_align rather than
-whole-chunk process fidelity.
-
-See `docs/TRAJECTORY_ROBUST_SCORING.md` for the exact default parameters and
-score-computation recipe.
-
-## 4. Strict J_val, audits, and selection (endpoint-weighted protocol)
-
-```python
-from pacer_framework import (component_balanced_j_val, evaluate_candidate,
-                             select_candidate, candidate_ranking_table)
-
-# Reference policy scores once (for the no-regression audit):
-_, _, ref = component_balanced_j_val(reference_validation_rows)
+from pacer_framework import evaluate_candidate, select_candidate, candidate_ranking_table
 
 evaluations = {
     name: evaluate_candidate(
         validation_rows=rows_for[name],
-        weight_manifest=weight_manifests[name],     # from compile_weights
+        reference_validation_rows=baseline_rows,
+        weight_manifest=weight_manifests[name],
         w_max=candidates[name].w_max,
-        reference_component_scores=ref["component_scores"],
-        delta_reg=0.05,                              # fix BEFORE ranking
-        require_reference_component_scores=True,     # paper-faithful no-regression audit
+        scoring_config=config,
     )
     for name in candidates
 }
-j_vals  = {n: e["j_val"]   for n, e in evaluations.items()}
-audited = {n: e["feasible"] for n, e in evaluations.items()}
-selected = select_candidate(j_vals, audited)         # None -> fall back to pi_theta0
+j_vals = {name: result["j_val"] for name, result in evaluations.items()}
+audited = {name: result["feasible"] for name, result in evaluations.items()}
+selected = select_candidate(j_vals, audited)
 ranking = candidate_ranking_table(j_vals, audited, selected)
 ```
 
-Semantics: v_j = B_j · renormalized weighted mean of the
-applicable submetrics (eq:row_val); J_val = mean over components of
-per-component mean row scores (eq:j_val); feasibility F(η) =
-A_audit·A_wrong·A_safe·A_reg with zero tolerance on wrong-target and unsafe
-leakage (eq:app_feasibility). J_val is a model-selection diagnostic — never a training loss and never a
-substitute for deployment success. J_val values are comparable only across
-candidates scored on the identical, pre-frozen validation row set; freeze the
-scoring-subset row manifest before any candidate is scored and reuse it for
-every candidate and baseline.
+Matched reference geometry recomputes no-regression under the same coefficients.
+Reference component scores are rebuilt with that configuration, not copied from
+a differently weighted run. Precomputed reference component scores remain an
+explicit caller-owned same-protocol input.
 
-## 5. Held-out comparison, exactly as reported
+The row score is the gated, normalized weighted mean of applicable terms.
+Component-balanced aggregation averages positive rows within each component,
+then components equally. Blocked positive rows remain zero in the denominator;
+failure/excluded rows are audit-only. Manifests record the config, fingerprint,
+counts and indicator provenance.
 
-Evaluate ONLY the selected candidate and the baselines on held-out scene
-configurations that appeared nowhere in the buffer, with the same reset,
-timeout, label vocabulary, and operator rubric for every method, then:
+Full feasibility includes training-view/ESS checks, wrong-target and unsafe
+leakage, scoring support, reference component coverage and component-level
+no-regression. Missing references fail closed by default. An explicit reference
+opt-out is a labelled diagnostic, not a complete selection audit.
 
-```python
-from pacer_framework import success_table, paired_component_bootstrap
+`robust_profile_j_val` without a profile uses this same component-mean route.
+Named lower-tail/factor-family diagnostics are explicit opt-ins, not the default.
 
-results = {  # per method: component/task -> (successes, trials); fill from YOUR held-out run
-    "pacer_selected": {
-        "task_a": (successes_a, trials_a),
-        "task_b": (successes_b, trials_b),
-    },
-    "vanilla_post_sft": {...},
-    "uniform_all_eligible": {...},
-}
-table = success_table(results)                       # Wilson 95% CIs
-diff = paired_component_bootstrap(results["pacer_selected"],
-                                  results["vanilla_post_sft"])
-```
+## 4. Select, freeze and test separately
 
-`wilson_interval` gives per-method binomial confidence intervals; the paired
-component cluster-bootstrap resamples your task/component groups with
-replacement with both methods sharing each draw. With few components, report
-bootstrap intervals as descriptive diagnostics, not as a replacement for the
-actual held-out success rates.
+Choose the highest score among feasible candidates. If none passes, use the
+reference fallback rather than forcing an unqualified candidate onto hardware.
+Freeze the checkpoint and scoring protocol before protected testing. J_val is
+not a training loss, task-success probability or safety certificate.
 
-## 6. Hand off to hardware (pipeline step 7)
+Keep actual held-out outcomes separate. `success_table` and
+`paired_component_bootstrap` summarize your measured results. Match resampling
+to the collection protocol; few task/component clusters support only limited
+uncertainty claims. Synthetic demo counts are not experimental evidence.
 
-The offline J_val + audits exist to answer one question: **which trained
-candidate goes on the robot**. The decision rule, in full:
-
-1. A candidate is eligible only if it passed every audit — zero forbidden
-   positive-weight rows, healthy weight statistics, zero wrong-target leakage,
-   zero unsafe leakage, and per-component no-regression against the reference
-   policy.
-2. Among audited candidates, deploy the one with the highest component-balanced
-   J_val (`select_candidate`).
-3. If NO candidate is audited, deploy the reference policy π_θ0 unchanged —
-   PACER never forces a post-trained model onto hardware.
-4. Freeze the selected checkpoint BEFORE the hardware evaluation, run the
-   held-out protocol of §4 once, and report J_val only as the selection
-   diagnostic it is — deployment success rate is separate empirical evidence.
+For real hardware, follow the integration and safety runbooks, including
+attended dry runs, calibrated targets and independent physical stop mechanisms.

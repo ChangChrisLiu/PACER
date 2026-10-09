@@ -22,6 +22,8 @@ def val_row(component="ram", role="partial", **over):
         "row_id": f"{component}:{role}",
         "component": component,
         "role": role,
+        "wrong_target": False, "non_target_exclusion": False,
+        "invalid_orientation": False, "unsafe": False,
         "submetrics": {"progress": 0.8, "proximity": 0.6, "terminal": 0.4, "direction": 1.0},
     }
     row.update(over)
@@ -86,10 +88,10 @@ def test_trajectory_robust_profile_contract_is_named_and_explicit():
     assert plus.family_weights == {"outcome": 0.20, "trajectory": 0.70, "no_regression": 0.10}
     assert plus.trajectory_weights == {"direction": 0.15, "align": 0.85}
     assert plus.aggregation == "component_role_q25"
-    assert DEFAULT_ROBUST_SCORER_PROFILE == "trajectory_robust_component_role_q25_A_plus"
+    assert DEFAULT_ROBUST_SCORER_PROFILE == "component_balanced_mean"
 
 
-def test_trajectory_robust_default_profile_is_a_plus():
+def test_default_profile_is_direct_component_mean_and_Aplus_is_explicit():
     rows = [
         val_row(component="ram", role="clean", submetrics={"progress": 1.0, "proximity": 0.5, "terminal": 0.0, "direction": 0.0, "align": 1.0, "no_regression": 1.0}),
     ]
@@ -97,9 +99,14 @@ def test_trajectory_robust_default_profile_is_a_plus():
     explicit_score, _explicit_rows, explicit_manifest = robust_profile_j_val(
         rows, profile="trajectory_robust_component_role_q25_A_plus"
     )
-    assert default_score == pytest.approx(explicit_score)
-    assert default_manifest["profile"] == "trajectory_robust_component_role_q25_A_plus"
+    direct_score, _, direct_manifest = component_balanced_j_val(rows)
+    assert default_score == direct_score
+    assert default_manifest["profile"] == "component_balanced_mean"
+    assert default_manifest["aggregation"] == "component_mean"
+    assert default_manifest["scoring_config_hash"] == direct_manifest["scoring_config_hash"]
+    assert explicit_score == pytest.approx(0.7949985766686961, abs=1e-12)
     assert explicit_manifest["profile"] == "trajectory_robust_component_role_q25_A_plus"
+    assert explicit_manifest["aggregation"] == "component_role_q25"
 
 
 def test_trajectory_robust_profile_uses_component_role_lower_tail_not_mean():
@@ -212,6 +219,7 @@ def _good_manifest(**over):
 def test_candidate_feasibility_eq_app_feasibility():
     _, clean_scores, _ = component_balanced_j_val([val_row()])
     feasible, checks = candidate_feasibility(
+        require_reference_component_scores=False,
         weight_manifest=_good_manifest(),
         validation_scores=clean_scores,
         w_max=4.5,
@@ -220,17 +228,20 @@ def test_candidate_feasibility_eq_app_feasibility():
 
     _, leak_scores, _ = component_balanced_j_val([val_row(wrong_target=True)])
     feasible, checks = candidate_feasibility(
+        require_reference_component_scores=False,
         weight_manifest=_good_manifest(), validation_scores=leak_scores, w_max=4.5
     )
     assert not feasible and checks["A_wrong_zero_leakage"] is False
 
     _, unsafe_scores, _ = component_balanced_j_val([val_row(unsafe=True)])
     feasible, checks = candidate_feasibility(
+        require_reference_component_scores=False,
         weight_manifest=_good_manifest(), validation_scores=unsafe_scores, w_max=4.5
     )
     assert not feasible and checks["A_safe_zero_unsafe"] is False
 
     feasible, checks = candidate_feasibility(
+        require_reference_component_scores=False,
         weight_manifest=_good_manifest(n_eff_horizons=0.5),
         validation_scores=clean_scores,
         w_max=4.5,
@@ -239,6 +250,7 @@ def test_candidate_feasibility_eq_app_feasibility():
     assert not feasible and checks["A_audit_n_eff"] is False
 
     feasible, checks = candidate_feasibility(
+        require_reference_component_scores=False,
         weight_manifest=_good_manifest(weight_max=9.0),
         validation_scores=clean_scores,
         w_max=4.5,
@@ -246,6 +258,7 @@ def test_candidate_feasibility_eq_app_feasibility():
     assert not feasible and checks["A_audit_weight_within_clip"] is False
 
     feasible, checks = candidate_feasibility(
+        require_reference_component_scores=False,
         weight_manifest=_good_manifest(),
         validation_scores=clean_scores,
         w_max=4.5,
@@ -256,6 +269,7 @@ def test_candidate_feasibility_eq_app_feasibility():
     assert not feasible and checks["A_reg_no_regression"] is False
 
     feasible, _ = candidate_feasibility(
+        require_reference_component_scores=False,
         weight_manifest=_good_manifest(),
         validation_scores=clean_scores,
         w_max=4.5,

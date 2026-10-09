@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import re
+import subprocess
 from pathlib import Path
 
 
@@ -48,6 +49,8 @@ SKIP_PARTS = {
     ".claude",
     ".claude-flow",
     ".pytest_cache",
+    ".venv", "venv", ".local", ".mypy_cache", ".ruff_cache",
+    "build", "dist", "demo_output",
     "__pycache__",
     "agent_reviews",
 }
@@ -69,7 +72,15 @@ def _decode_needles() -> tuple[str, ...]:
 
 
 def iter_publication_text_files():
-    for path in REPO_ROOT.rglob("*"):
+    try:
+        tracked = subprocess.run(
+            ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            cwd=REPO_ROOT, capture_output=True, check=True,
+        )
+        paths = [REPO_ROOT / name.decode("utf-8") for name in tracked.stdout.split(b"\0") if name]
+    except (OSError, subprocess.CalledProcessError):
+        paths = list(REPO_ROOT.rglob("*"))
+    for path in paths:
         if not path.is_file():
             continue
         if any(part in SKIP_PARTS or part.endswith(".egg-info") for part in path.parts):

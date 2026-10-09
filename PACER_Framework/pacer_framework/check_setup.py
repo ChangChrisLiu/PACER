@@ -64,8 +64,9 @@ def main() -> int:
     print("\nNext steps:")
     print("  1. Read docs/SETUP.md and docs/ADAPTER_HOOKS.md")
     print("  2. Run: python -m pytest tests -q")
-    print("  3. Run: python examples/end_to_end_demo.py")
-    print("  4. Implement RobotHooks / VLAHooks / TrainerHooks in your own project")
+    print("  3. Run: python -m pacer_framework.demo --out-dir .local/demo")
+    print("  4. Export config: python -m pacer_framework.scoring --write-config .local/scoring.json")
+    print("  5. Implement RobotHooks / VLAHooks / TrainerHooks in your own project")
     return 0
 
 

@@ -7,6 +7,7 @@ open-loop evaluation (EEF cosine, v_j, J_val, audits) -> hardware candidate
 selection. See README.md for the pipeline and the claim-to-code map. The
 package is offline-only: no robot, model, or hardware imports.
 """
+from pacer_framework.configuration import ScoringConfig
 from pacer_framework.roles import (
     AUDIT_ONLY_ROLES,
     COMPILER_TO_PAPER,
@@ -50,6 +51,7 @@ from pacer_framework.alignment import (
 from pacer_framework.validation import (
     DEFAULT_SUBMETRIC_WEIGHTS,
     DEFAULT_ROBUST_SCORER_PROFILE,
+    DEFAULT_SCORER_PROFILE,
     ROBUST_SCORER_PROFILES,
     SCORING_PROFILES,
     SUBMETRIC_ALIASES,
@@ -82,6 +84,7 @@ __all__ = [
     "COMPILER_TO_PAPER",
     "DEFAULT_SUBMETRIC_WEIGHTS",
     "DEFAULT_ROBUST_SCORER_PROFILE",
+    "DEFAULT_SCORER_PROFILE",
     "EVIDENCE_KEYS",
     "OPERATOR_LABELS",
     "PAPER_ROLES",
@@ -89,6 +92,7 @@ __all__ = [
     "RobotHooks",
     "ROBUST_SCORER_PROFILES",
     "SCORING_PROFILES",
+    "ScoringConfig",
     "SUBMETRIC_ALIASES",
     "TargetRegion",
     "TrainerHooks",

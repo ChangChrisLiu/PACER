@@ -56,21 +56,14 @@ Framework contracts are implemented directly and locked by tests (verification m
    trainer, your checkpointing, the native action loss multiplied by each
    row's exported `loss_weight` — same starting checkpoint, recipe, and update
    budget for every candidate and baseline.
-6. **Evaluate the trained candidates offline / open-loop** using
-   rollout/reference EEF traces: EEF cosine and reference-direction alignment
-   (`alignment.reference_alignment`, eq:app_align), row scores v_j with
-   blockers, component-balanced J_val, feasibility audits, and the comparison
-   tables (`evaluate_candidate`, `success_table`,
-   `paired_component_bootstrap`). PACER also exposes named trajectory-primary
-   robust scorer profiles (`robust_profile_j_val`) for diagnostics where
-   whole-chunk process fidelity is the declared validation objective. The
-   current default robust profile is `trajectory_robust_component_role_q25_A_plus`:
-   it keeps outcome/no-regression terms nonzero, scores blocked rows as zero,
-   and aggregates by the lower quartile over component×role cells so controls
-   are judged by the same robustness rule as PACER candidates. See
-   `docs/TRAJECTORY_ROBUST_SCORING.md` for the exact default parameters and
-   score-computation recipe.
-   → `docs/RUNBOOK_EVALUATION.md`
+6. **Evaluate candidates under one configurable protocol.** Construct
+   whole-chunk EEF/TCP alignment and target-direction metrics, apply the shared
+   direct row weights and blockers, then take a component-balanced mean.
+   `ScoringConfig` is reused for candidate and baseline calculations, including
+   derived no-regression. `evaluate_candidate` performs full feasibility audits;
+   `robust_profile_j_val` without an explicit profile uses the same mean scorer.
+   Named lower-tail diagnostics remain opt-in compatibility paths, not defaults.
+   → `docs/SCORING_CONFIGURATION.md` and `docs/RUNBOOK_EVALUATION.md`
 7. **Pick the model for the hardware run**: the audited candidate with the
    highest J_val (`select_candidate`); when no candidate passes the audits,
    fall back to the reference policy. Only the selected model (plus baselines,
@@ -84,7 +77,7 @@ python3 -m venv .venv && source .venv/bin/activate
 python -m pip install -e '.[dev]'
 python -m pacer_framework.check_setup
 python3 -m pytest tests -q            # framework tests
-python3 examples/end_to_end_demo.py   # full pipeline on a synthetic robot
+python -m pacer_framework.demo --out-dir .local/demo   # synthetic full pipeline
 ```
 
 For full GitHub-style onboarding, including optional robot/VLA packages, read
@@ -111,7 +104,8 @@ docs/      SETUP.md                   <- GitHub clone/install/verify guide
            RUNBOOK_DATA_COLLECTION.md <- steps 1-3
            RUNBOOK_TRAINING_PREP.md   <- steps 4-5
            RUNBOOK_EVALUATION.md      <- steps 6-7
-           TRAJECTORY_ROBUST_SCORING.md <- current default trajectory-primary scorer
+           SCORING_CONFIGURATION.md  <- shared configurable scoring API/CLI
+           TRAJECTORY_ROBUST_SCORING.md <- explicit diagnostic compatibility
 examples/  training_rows.jsonl, validation_rows.jsonl,
            candidate_terminal_stop_heavy.json, end_to_end_demo.py
 pacer_framework/
@@ -126,7 +120,10 @@ pacer_framework/
            export.py     <- trainer-ready rows.jsonl with loss_weight
            hooks.py      <- RobotHooks/VLAHooks/TrainerHooks integration boundary
            alignment.py  <- EEF cosine, reference alignment, open-loop submetrics, blockers
+           configuration.py <- JSON/API scoring configuration and fingerprint
            validation.py <- v_j, J_val, feasibility audits, candidate selection
+           scoring.py    <- installed row-scoring/configuration CLI
+           demo.py       <- installed synthetic end-to-end workflow
            reporting.py  <- Wilson CIs, paired component bootstrap, ranking tables
 tests/     one file per module + test_end_to_end.py + test_examples.py
 ```
@@ -179,11 +176,11 @@ OpenPI, or LeRobot.
 | Standard records (app:roles / app:valscore) | `schema.validate_*`, templates | `test_schema.py`, `test_examples.py` |
 | eq:row_val + per-row λ renormalization | `validation.row_score` | `test_validation.py::test_row_score_renormalizes_over_applicable_submetrics` |
 | eq:app_bj (blocker; terminal failure never blocked) | `validation.blocker`, `alignment.blocker_flags_from_open_loop` | `test_validation.py`, `test_alignment.py::test_blocker_flags_wrong_target_and_exclusion` |
-| **eq:app_align (EEF reference-direction cosine)** | `alignment.reference_alignment` | `test_alignment.py::test_reference_alignment_eq_app_align` |
+| Whole-chunk reference alignment (default); endpoint reference direction (explicit) | `alignment.chunk_trajectory_alignment`, `alignment.reference_alignment`, `open_loop_submetrics` | `test_alignment.py`, `test_scoring_config.py` |
 | Direction submetric (EEF target cosine) | `alignment.target_direction_cosine` | `test_alignment.py::test_target_direction_cosine_reads_chunk_displacement` |
 | eq:app_vhat / eq:app_reg | `validation.geometric_row_score`, `no_regression`, `alignment.with_no_regression` | `test_validation.py`, `test_alignment.py` |
 | eq:j_val (component-balanced) | `validation.component_balanced_j_val` | `test_validation.py::test_component_balanced_j_val_averages_components_not_rows` |
-| Current default trajectory-primary robust diagnostic (framework completion for process-fidelity scoring) | `validation.DEFAULT_ROBUST_SCORER_PROFILE`, `validation.scorer_profile`, `validation.robust_profile_j_val`, `docs/TRAJECTORY_ROBUST_SCORING.md` | `test_validation.py::test_trajectory_robust_profile_contract_is_named_and_explicit`, `test_validation.py::test_trajectory_robust_default_profile_is_a_plus`, `test_validation.py::test_trajectory_robust_profile_uses_component_role_lower_tail_not_mean` |
+| Configurable component-mean default, reference-aware rescoring and explicit diagnostic replay | `ScoringConfig`, `component_balanced_j_val`, `robust_profile_j_val`, `docs/SCORING_CONFIGURATION.md` | `test_scoring_config.py`, `test_scoring_cli.py`, `test_validation.py` |
 | eq:app_feasibility (A_audit·A_wrong·A_safe·A_reg) | `validation.candidate_feasibility`, `evaluate_candidate` | `test_validation.py::test_candidate_feasibility_eq_app_feasibility` |
 | eq:selection + reference fallback | `validation.select_candidate` | `test_validation.py::test_select_candidate_argmax_with_reference_fallback` |
 | Table app_baselines (8 views) + eq:app_fixed_geometry | `baselines.compile_baseline` | `test_baselines.py` |

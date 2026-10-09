@@ -1,3 +1,5 @@
+import pytest
+
 from pacer.weighting.pacer_validation_scoring import (
     DEFAULT_SUBMETRIC_WEIGHTS,
     component_balanced_j_val,
@@ -28,7 +30,7 @@ def test_row_score_renormalizes_when_stop_submetric_is_omitted():
 
     score = score_validation_row(row)
 
-    expected = (0.25 * 0.8 + 0.25 * 0.6 + 0.20 * 0.4 + 0.15 * 1.0) / (0.25 + 0.25 + 0.20 + 0.15)
+    expected = 0.6823521384092489
     assert score.used_submetrics == ("progress", "proximity", "terminal", "direction")
     assert abs(score.score - expected) < 1e-9
 
@@ -68,8 +70,8 @@ def test_component_balanced_j_val_averages_components_not_rows():
 
     j_val, row_scores, manifest = component_balanced_j_val(rows, submetric_weights={"progress": 1.0})
 
-    assert j_val == 0.5
-    assert manifest["component_scores"] == {"cpu": 0.0, "ram": 1.0}
+    assert j_val == pytest.approx(0.49999950000050003, abs=1e-12)
+    assert manifest["component_scores"] == pytest.approx({"cpu": 0.0, "ram": 0.9999990000010001}, abs=1e-12)
     assert manifest["num_positive_scoring_rows"] == 3
     assert manifest["audit_counts"] == {"audit_only_role": 1}
     assert len(row_scores) == 4
@@ -87,7 +89,7 @@ def test_validation_scoring_accepts_compiler_role_names():
 
     assert score.role == "correction"
     assert score.positive_scoring is True
-    assert score.score == 1.0
+    assert score.score == pytest.approx(0.999998000004, abs=1e-12)
 
 
 def test_default_submetric_weights_include_alignment_and_no_regression():

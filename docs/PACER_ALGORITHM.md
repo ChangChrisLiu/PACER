@@ -28,16 +28,12 @@ validation views for VLA policy improvement.
 6. Clip/floor final weights according to role and candidate eta settings.
 7. Expose weights as training/export fields such as `returns.loss_weight`.
 8. Train candidate policies in the external VLA stack.
-9. Score candidates on validation data. Audited candidate selection
-   (`evaluate_candidate` / `select_candidate`) defaults to the endpoint-weighted
-   strict `component_balanced_j_val` protocol. The current default
-   trajectory-robust PACER calculation
-   (`trajectory_robust_component_role_q25_A_plus`) is exposed by
-   `robust_profile_j_val`: outcome and no-regression terms remain nonzero,
-   whole-chunk EEF/TCP trajectory alignment is the primary process-fidelity
-   family, blocked rows score zero, and the scalar score is the lower quartile
-   over component×role cells. Report A+ as a process-fidelity diagnostic unless
-   it was frozen before a held-out evaluation.
+9. Score candidates using one shared `ScoringConfig`: whole-chunk trajectory
+   alignment, target-direction and other applicable metrics, gated direct row
+   weighting and component-balanced mean. Candidate and baseline geometry use
+   the same coefficients for no-regression. `evaluate_candidate` checks full
+   feasibility; `select_candidate` takes the audited argmax. Named factor-family
+   diagnostics remain explicit opt-ins and do not define the default score.
 10. Optionally propose the next eta candidate with Bayesian optimization.
 
 ## Main code entry points
@@ -73,28 +69,23 @@ docs is PACER.
 
 ## Current validation calculation
 
-The generic framework exposes the current PACER validation calculation through
-`pacer_framework.validation.robust_profile_j_val`. Calling it without an
-explicit profile uses:
+`pacer_framework.component_balanced_j_val` is the canonical scorer.
+`robust_profile_j_val` without a profile and the runtime row-scoring facade use
+that same calculation. `open_loop_submetrics` defaults to whole-chunk trajectory
+alignment; endpoint mode must be explicit.
 
-```text
-trajectory_robust_component_role_q25_A_plus
-```
+`ScoringConfig` exposes the shared coefficients, alignment representation,
+no-regression margin and reference-audit requirement. Export an editable JSON
+configuration through `python -m pacer_framework.scoring --write-config`, then
+reuse it for every candidate and baseline. No task-specific parameter recipe is
+part of this method description. See
+[`SCORING_CONFIGURATION.md`](../PACER_Framework/docs/SCORING_CONFIGURATION.md).
 
-This default A+ profile uses three factor families and should receive
-whole-chunk `align` values produced with
-`open_loop_submetrics(..., reference_alignment_mode="trajectory")`:
-
-```text
-outcome    = mean(progress, proximity, terminal)
-trajectory = 0.15 * direction + 0.85 * align
-row_score  = 0.20 * outcome + 0.70 * trajectory + 0.10 * no_regression
-aggregation = lower quartile over component × role cells
-```
-
-This is the framework-level scoring method. Actual experiment result tables
-belong in generated evaluation outputs or project-specific artifacts, not in
-this GitHub method definition.
+A+ and other named lower-tail profiles remain explicit compatibility diagnostics.
+Changing aggregation changes the score definition, not only its coefficients.
+Root aggregate BO/smoke adapters retain their existing report contracts; they
+are not substitutes for canonical row-level scoring or complete audits in a new
+integration. Synthetic or proxy outputs are not physical validation evidence.
 
 ## Evidence dimensions
 

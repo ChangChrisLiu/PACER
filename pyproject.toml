@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pacer-robotics"
-version = "0.1.0"
+version = "0.2.0"
 description = "PACER: process-aware correction and evidence reweighting for VLA policy improvement"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,9 +21,16 @@ dependencies = [
 test = ["pytest>=7"]
 robot = ["opencv-python", "pyzmq"]
 
-[tool.setuptools.packages.find]
-include = ["pacer*"]
+[tool.setuptools]
+packages = ["pacer", "pacer.collection", "pacer.rollout_eval", "pacer.weighting", "pacer_framework"]
+
+[tool.setuptools.package-dir]
+pacer_framework = "PACER_Framework/pacer_framework"
+
+[project.scripts]
+pacer-score = "pacer_framework.scoring:main"
+pacer-demo = "pacer_framework.demo:cli"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "PACER_Framework"]

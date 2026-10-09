@@ -16,6 +16,16 @@ robot/camera/model servers and want to adapt the included PACER runtime adapter.
 The package directory name is legacy; the method and repo should be described as
 PACER.
 
+Install exactly one distribution in an environment. The full runtime package
+includes the same framework source as the minimal package; do not install both
+over one another. If system Python lacks venv support, use the system venv
+support package or uv/conda.
+
+Both installation options expose `pacer-score` and `pacer-demo`. Export a JSON
+scoring configuration with `python -m pacer_framework.scoring --write-config`,
+then reuse it for candidate/reference scoring. See
+`PACER_Framework/docs/SCORING_CONFIGURATION.md`.
+
 ## 2. Install and verify the generic framework with venv
 
 ```bash
@@ -55,7 +65,8 @@ Read next:
 5. `PACER_Framework/docs/RUNBOOK_DATA_COLLECTION.md`
 6. `PACER_Framework/docs/RUNBOOK_TRAINING_PREP.md`
 7. `PACER_Framework/docs/RUNBOOK_EVALUATION.md`
-8. `PACER_Framework/docs/TRAJECTORY_ROBUST_SCORING.md`
+8. `PACER_Framework/docs/SCORING_CONFIGURATION.md`
+9. `PACER_Framework/docs/TRAJECTORY_ROBUST_SCORING.md` (explicit compatibility diagnostics)
 
 ## 4. If your robot streams data over ZMQ
 

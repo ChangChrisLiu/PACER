@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pacer-framework"
-version = "0.1.0"
+version = "0.2.0"
 description = "Robot/VLA-agnostic reference implementation of PACER: process-aware correction and evidence reweighting for VLA post-training."
 requires-python = ">=3.10"
 dependencies = []
@@ -17,6 +17,10 @@ dev = ["pytest>=8", "build>=1"]
 vla-transformers = ["transformers>=4.40", "accelerate>=0.30"]
 lerobot = ["lerobot"]
 zmq = ["pyzmq>=25"]
+
+[project.scripts]
+pacer-score = "pacer_framework.scoring:main"
+pacer-demo = "pacer_framework.demo:cli"
 
 [tool.setuptools]
 packages = ["pacer_framework"]
