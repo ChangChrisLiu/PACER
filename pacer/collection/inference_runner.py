@@ -18,7 +18,9 @@ ObsFn = Callable[[], dict[str, Any]]
 InferFn = Callable[[dict[str, Any], str], list[Any]]
 ApplyActionFn = Callable[[Any, dict[str, Any]], Any]
 FrameBuilderFn = Callable[[dict[str, Any]], dict[str, Any]]
-StopCheckFn = Callable[[list[Any], dict[str, Any]], bool]
+# A stop_check returns True to stop with "model_stop_token", a non-empty string
+# to stop with that stop source, or a falsy value to continue.
+StopCheckFn = Callable[[list[Any], dict[str, Any]], bool | str]
 ManualStopFn = Callable[[], str | None]
 QueryDiagFn = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -125,8 +127,15 @@ class TracedChunkRunner:
                 _infer_latency_s = max(0.0, self.clock() - _infer_t0)
                 n = min(self.open_loop_horizon, len(chunk))
                 chunk = chunk[:n]
-                stop_now = bool(stop_check(chunk, obs)) if stop_check else False
+                stop_result = stop_check(chunk, obs) if stop_check else False
+                stop_now = bool(stop_result)
+                requested_stop_source = (
+                    (stop_result if isinstance(stop_result, str) else "model_stop_token")
+                    if stop_now
+                    else None
+                )
                 query_extra = _safe_query_diag(query_diag_fn, obs)
+                query_extra["stop_check_source"] = requested_stop_source
                 query_extra["query_inference_latency_s"] = float(_infer_latency_s)
                 query = VLAQueryTrace(
                     query_index=self._query_index,
@@ -145,7 +154,7 @@ class TracedChunkRunner:
                 )
                 action_trace.append({"type": "policy_query", **query.to_dict()})
                 if stop_now:
-                    stop_source = "model_stop_token"
+                    stop_source = str(requested_stop_source)
                     break
                 action_queue.extend(chunk)
                 queue_query_index = self._query_index
