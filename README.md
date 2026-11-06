@@ -74,6 +74,25 @@ has a more detailed method-to-code map in
 For a framework-wide verification matrix across both layers, see
 [`docs/FRAMEWORK_VERIFICATION.md`](docs/FRAMEWORK_VERIFICATION.md).
 
+## Another use: automatic trial judging
+
+PACER's process evidence can also judge rollouts while they run, which removes
+the operator from routine approach evaluation. With `--auto-judge`, the
+rollout-only evaluation runner
+([`scripts/robot_runtime/run_rollout_eval.py`](scripts/robot_runtime/run_rollout_eval.py))
+scores every predicted action chunk before execution against a target taken
+from a demonstration endpoint at the current board position, and saves the
+score of each chunk. It stops a trial when the TCP has reached the target
+region and the next predicted chunk stays inside it, which replaces the
+policy's stop token, or when a predicted chunk would trigger a blocker. It then
+assigns the closed-vocabulary label and starts the next trial. The operator is
+needed only when the board position changes.
+
+The mode is intended for approach-only hardware evaluation, including the
+evaluation of methods other than PACER. Its labels are a geometric proxy for
+the operator's handoff judgement, so report their agreement with operator
+labels. See [`docs/AUTO_TRIAL_JUDGE.md`](docs/AUTO_TRIAL_JUDGE.md).
+
 ## Configurable validation scoring
 
 The default is a gated direct score with component-balanced mean aggregation.
