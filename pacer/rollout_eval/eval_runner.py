@@ -32,7 +32,7 @@ import tty
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -46,11 +46,15 @@ from pacer.collection.inference_runner import (
 from .eval_feedback import (
     EvalFeedback,
     UNSAFE_ABORT_AUTO_LABEL,
+    hardware_stop_source,
     prompt_eval_label,
     wait_for_operator_ready,
 )
 from .eval_plan import EvalProgressTracker, EvalTrialSpec, ModelSpec
 from .eval_writer import RolloutEvalWriter
+
+if TYPE_CHECKING:
+    from .auto_judge import AutoJudge
 
 
 def _stdin_ready() -> bool:
@@ -200,6 +204,11 @@ class RolloutEvalRunner:
     clock: Callable[[], float] = field(default=time.time)
     mandatory_break_every: int = 30
     print_fn: Callable[[str], None] = field(default=print)
+    # Optional auto trial judge (pacer.rollout_eval.auto_judge). When set, the
+    # judge replaces the label menu and the per-trial Enter gate; the operator
+    # is only asked at each new (config, component) board position.
+    auto_judge: AutoJudge | None = None
+    position_gate: Callable[..., None] = field(default=wait_for_operator_ready)
 
     # ------------------------------------------------------------------
     # Public API
@@ -220,9 +229,14 @@ class RolloutEvalRunner:
         """
         completed_this_session = 0
         last_model_id: str | None = None
+        last_cell: tuple[str, str] | None = None
         for trial in plan:
             if self.progress.is_completed(trial):
                 continue
+            cell = (trial.config_id, trial.component)
+            if self.auto_judge is not None and cell != last_cell:
+                self._wait_for_position(trial)
+                last_cell = cell
             if trial.model_id != last_model_id:
                 if last_model_id is not None:
                     self.readiness_gate(
@@ -289,6 +303,26 @@ class RolloutEvalRunner:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _wait_for_position(self, trial: EvalTrialSpec) -> None:
+        """Auto-judge position gate: wait until the new cell has a target."""
+        assert self.auto_judge is not None
+        cell = f"{trial.config_id}/{trial.component}"
+        while True:
+            self.position_gate(
+                prompt=(
+                    f"[POSITION] Next board position: {cell}. Place the board, record its "
+                    f"target (demo endpoint) if it is new, then confirm."
+                ),
+                print_fn=self.print_fn,
+            )
+            self.auto_judge.reload()
+            if self.auto_judge.has_target(trial.config_id, trial.component):
+                return
+            self.print_fn(
+                f"[POSITION] No auto-judge target for {cell} in "
+                f"{self.auto_judge.targets_path}; record it, then confirm again."
+            )
+
     def _build_runner(self, model: ModelSpec) -> TracedChunkRunner:
         if self.chunk_runner_factory is not None:
             return self.chunk_runner_factory(self.config, model)
@@ -330,11 +364,12 @@ class RolloutEvalRunner:
         flow (e.g. unsafe_abort readiness gate).
         """
         self.move_home()
-        self.pre_rollout_gate(
-            trial=trial,
-            model=model,
-            print_fn=self.print_fn,
-        )
+        if self.auto_judge is None:
+            self.pre_rollout_gate(
+                trial=trial,
+                model=model,
+                print_fn=self.print_fn,
+            )
 
         prompt = TASK_INSTRUCTIONS[trial.component]
         # Build per-trial adapter (mirrors collection script line 2716, which
@@ -390,21 +425,40 @@ class RolloutEvalRunner:
 
         manual_stop_fn = self.manual_stop_reader or self._default_manual_stop
 
-        started_at = float(self.clock())
-        with self.raw_terminal():
-            result: RolloutResult = runner.run(
-                component=trial.component,
-                prompt=prompt,
-                phase="teleop",
-                get_obs=obs_fn,
-                infer=infer_fn,
-                apply_action=apply_fn,
-                build_frame=frame_fn,
-                stop_check=stop_fn,
-                manual_stop=manual_stop_fn,
-                query_diag_fn=self.query_diag_fn,
+        judge = None
+        stop_check: Callable[[list[Any], dict[str, Any]], bool | str] = stop_fn
+        if self.auto_judge is not None:
+            judge = self.auto_judge.trial_judge(
+                trial.config_id, trial.component, model_stop_check=stop_fn,
             )
-        self.stop_after_rollout(result.stop_source, model)
+            stop_check = judge.check_chunk
+
+        started_at = float(self.clock())
+        try:
+            with self.raw_terminal():
+                result: RolloutResult = runner.run(
+                    component=trial.component,
+                    prompt=prompt,
+                    phase="teleop",
+                    get_obs=obs_fn,
+                    infer=infer_fn,
+                    apply_action=apply_fn,
+                    build_frame=frame_fn,
+                    stop_check=stop_check,
+                    manual_stop=manual_stop_fn,
+                    query_diag_fn=self.query_diag_fn,
+                )
+        except Exception:
+            if judge is not None:
+                # A judge error (e.g. an observation without tcp_pose) ends the
+                # policy loop mid-rollout; settle and release servo mode like a
+                # stop token before the runner's error gate, best effort.
+                try:
+                    self.stop_after_rollout("model_stop_token", model)
+                except Exception as stop_exc:  # pragma: no cover - hardware path
+                    self.print_fn(f"[AUTO-JUDGE] stop after judge error failed: {stop_exc!r}")
+            raise
+        self.stop_after_rollout(hardware_stop_source(result.stop_source), model)
         ended_at = float(self.clock())
 
         final_tcp: list[float] | None = None
@@ -416,10 +470,17 @@ class RolloutEvalRunner:
             except Exception:
                 final_tcp = None
 
-        feedback = self.prompt_label(
-            stop_source=result.stop_source,
-            operator=self.operator,
-        )
+        if judge is not None:
+            feedback = judge.final_feedback(stop_source=result.stop_source, final_tcp=final_tcp)
+            self.print_fn(
+                f"[AUTO-JUDGE] label={feedback.label} stop_source={result.stop_source} "
+                f"note={feedback.note}"
+            )
+        else:
+            feedback = self.prompt_label(
+                stop_source=result.stop_source,
+                operator=self.operator,
+            )
 
         self.writer.save_trial(
             trial=trial,
@@ -438,6 +499,7 @@ class RolloutEvalRunner:
                 "language_instruction": prompt,
                 "gripper_cap_components": list(self.config.gripper_cap_components),
             },
+            chunk_scores=judge.chunk_scores if judge is not None else None,
         )
         # Defensive: if the auto-assigned label disagrees with the actual stop
         # source, we still trust the operator menu output. But the unsafe_abort

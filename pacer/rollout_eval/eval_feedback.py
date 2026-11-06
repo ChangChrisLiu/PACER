@@ -25,12 +25,27 @@ ROLLOUT_EVAL_LABELS: tuple[str, ...] = (
     UNCERTAIN_LABEL,
 )
 
+# Stop sources emitted by the optional auto trial judge (pacer.rollout_eval.auto_judge).
+AUTO_STOP_SOURCES: frozenset[str] = frozenset({"auto_success_stop", "auto_blocker_stop"})
+
 ROLLOUT_EVAL_STOP_SOURCES: tuple[str, ...] = (
     "model_stop_token",
     "manual_stop",
     "timeout",
     "unsafe_abort",
+    "auto_success_stop",
+    "auto_blocker_stop",
 )
+
+
+def hardware_stop_source(stop_source: str) -> str:
+    """Stop source to hand to the robot stop/settle logic.
+
+    An auto-judge stop ends the policy loop exactly like the policy's own stop
+    token, so it must get the same passive settle and OpenPI servo release;
+    otherwise the next move_home can be silently dropped.
+    """
+    return "model_stop_token" if stop_source in AUTO_STOP_SOURCES else stop_source
 
 LABELS_REQUIRING_NOTE: frozenset[str] = frozenset({UNCERTAIN_LABEL})
 

@@ -6,6 +6,7 @@ Layout:
         episode_meta.json
         rollout_eval_feedback.json
         action_trace.jsonl
+        chunk_scores.jsonl      (auto-judge mode only)
         rollout_eval_summary.json
     <output_root>/<run_id>/
         eval_session_meta.json
@@ -194,6 +195,7 @@ class RolloutEvalWriter:
         wall_seconds: float,
         final_tcp: list[float] | None,
         runner_args: dict[str, Any],
+        chunk_scores: list[dict[str, Any]] | None = None,
     ) -> Path:
         if trial.eval_trial_id in self._completed_ids():
             raise TrialAlreadySavedError(
@@ -249,6 +251,15 @@ class RolloutEvalWriter:
                 trace_path.unlink()
             for row in action_trace:
                 append_jsonl(trace_path, row)
+
+        if chunk_scores is not None:
+            # Auto-judge per-chunk PACER scores; replace any file left by an
+            # earlier failed attempt of the same trial.
+            scores_path = episode_dir / "chunk_scores.jsonl"
+            if scores_path.exists():
+                scores_path.unlink()
+            for row in chunk_scores:
+                append_jsonl(scores_path, row)
 
         strict = is_strict_success(label=feedback.label, stop_source=stop_source)
         excluded = is_excluded(label=feedback.label, stop_source=stop_source)
