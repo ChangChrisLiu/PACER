@@ -76,22 +76,77 @@ For a framework-wide verification matrix across both layers, see
 
 ## Another use: automatic trial judging
 
-PACER's process evidence can also judge rollouts while they run, which removes
-the operator from routine approach evaluation. With `--auto-judge`, the
-rollout-only evaluation runner
-([`scripts/robot_runtime/run_rollout_eval.py`](scripts/robot_runtime/run_rollout_eval.py))
-scores every predicted action chunk before execution against a target taken
-from a demonstration endpoint at the current board position, and saves the
-score of each chunk. It stops a trial when the TCP has reached the target
-region and the next predicted chunk stays inside it, which replaces the
-policy's stop token, or when a predicted chunk would trigger a blocker. It then
-assigns the closed-vocabulary label and starts the next trial. The operator is
-needed only when the board position changes.
+PACER's scoring can also act as an automatic judge for robot rollouts. In
+approach-only hardware evaluation an operator normally has to:
 
-The mode is intended for approach-only hardware evaluation, including the
-evaluation of methods other than PACER. Its labels are a geometric proxy for
-the operator's handoff judgement, so report their agreement with operator
-labels. See [`docs/AUTO_TRIAL_JUDGE.md`](docs/AUTO_TRIAL_JUDGE.md).
+- watch every trial;
+- stop the robot once it reaches the handoff region;
+- pick a label;
+- start the next trial.
+
+With `--auto-judge`, the rollout-only evaluation runner
+([`scripts/robot_runtime/run_rollout_eval.py`](scripts/robot_runtime/run_rollout_eval.py))
+does all four. The operator is needed only to place the board and record a
+target when the board position changes. Any OpenPI absolute-joint policy can be
+evaluated this way, including methods other than PACER.
+
+**How it works.** The target is the endpoint of a demonstration recorded at
+the current board position. Before each predicted action chunk is executed,
+the judge:
+
+1. maps the chunk's joint targets to TCP poses with UR5e forward kinematics;
+2. scores the chunk against the target with the same open-loop submetrics PACER
+   uses for validation (progress, proximity, terminal, direction);
+3. makes one of three decisions:
+   - **Success stop.** The TCP is inside the target region and every pose of
+     the predicted chunk stays inside it. This replaces the policy's stop
+     token.
+   - **Blocker stop.** The predicted chunk would do one of the following, and
+     it is not executed:
+     - enter a declared non-target region;
+     - leave the configured workspace;
+     - exceed the action bounds;
+     - go more than 5 mm below the target;
+     - end within 2 `r_target` of the target with the wrong orientation.
+   - **Continue.** The chunk is executed. The policy's own stop token or the
+     timeout still ends the trial.
+
+**Labels.** The final pose gets PACER's closed vocabulary (`success`,
+`near_but_not_accurate`, `wrong_orientation_or_wrong_location`,
+`totally_off_wrong_region_or_target`) under the paper's tolerances: 5 mm for
+the CPU, 10 mm for the other components, and 0.35 rad. A trial within 1 mm of
+a threshold keeps its label and is flagged `needs_review` in the note.
+
+**Outputs per trial.**
+
+- `chunk_scores.jsonl`: decision, scores and errors for every chunk.
+- `auto_judge_context.json`: the target and thresholds used.
+- The usual summary row, with `operator = auto_judge`.
+
+**Quick start.**
+
+```bash
+# Once: check forward kinematics on a recorded episode (expect sub-millimetre residuals).
+python -m pacer.rollout_eval.ur5e_kinematics --check-episode <episode dir>
+
+# For each board position: record the target from a demonstration endpoint.
+python -m pacer.rollout_eval.auto_judge_targets add --targets .local/targets.json \
+  --config-id config_001 --component ram --demo-episode <demo episode dir>
+
+# Run the evaluation; dry-run first, then replace --dry-run with --confirm-hardware.
+python scripts/robot_runtime/run_rollout_eval.py --run-id <id> --models-file <models.json> \
+  --auto-judge --auto-judge-targets .local/targets.json --auto-judge-r-near-m <metres> --dry-run
+```
+
+**Scope.** The judge covers approach and handoff only. Its labels are a
+geometric proxy for the operator's handoff judgement, not a measurement of
+physical success, and it does not model gripper collisions. When using it:
+
+- keep the operator at the E-stop;
+- report agreement with operator labels;
+- keep target-defining demonstrations out of all training data.
+
+The full rules are in [`docs/AUTO_TRIAL_JUDGE.md`](docs/AUTO_TRIAL_JUDGE.md).
 
 ## Configurable validation scoring
 
