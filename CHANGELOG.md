@@ -8,7 +8,9 @@
   `chunk_scores.jsonl`. Trials stop as `auto_success_stop` or `auto_blocker_stop`
   and are labelled automatically, with `needs_review` notes near thresholds.
   Targets per board position live in a JSON file
-  (`python -m pacer.rollout_eval.auto_judge_targets`). UR5e forward kinematics
+  (`python -m pacer.rollout_eval.auto_judge_targets`); obstacle regions are
+  opt-in per target, and each trial records `auto_judge_context.json`. The mode
+  accepts OpenPI absolute-joint models only. UR5e forward kinematics
   and an episode check are in `pacer.rollout_eval.ur5e_kinematics`. Manual mode
   is unchanged.
 - `TracedChunkRunner` `stop_check` may return a stop-source string; `True` still

@@ -7,6 +7,7 @@ Layout:
         rollout_eval_feedback.json
         action_trace.jsonl
         chunk_scores.jsonl      (auto-judge mode only)
+        auto_judge_context.json (auto-judge mode only)
         rollout_eval_summary.json
     <output_root>/<run_id>/
         eval_session_meta.json
@@ -196,6 +197,7 @@ class RolloutEvalWriter:
         final_tcp: list[float] | None,
         runner_args: dict[str, Any],
         chunk_scores: list[dict[str, Any]] | None = None,
+        judge_context: dict[str, Any] | None = None,
     ) -> Path:
         if trial.eval_trial_id in self._completed_ids():
             raise TrialAlreadySavedError(
@@ -260,6 +262,11 @@ class RolloutEvalWriter:
                 scores_path.unlink()
             for row in chunk_scores:
                 append_jsonl(scores_path, row)
+
+        if judge_context is not None:
+            # Target, obstacle regions, workspace and thresholds this trial was
+            # judged against (targets can be re-recorded between trials).
+            write_json(episode_dir / "auto_judge_context.json", judge_context)
 
         strict = is_strict_success(label=feedback.label, stop_source=stop_source)
         excluded = is_excluded(label=feedback.label, stop_source=stop_source)

@@ -16,7 +16,8 @@ asked only when the plan moves to a new board position (`config_id/component`).
 - **No collision model.** Blockers use the TCP point only (non-target regions,
   workspace box, action bounds, floor below the target).
 - **OpenPI absolute-joint chunks.** Predicted TCP poses come from UR5e forward
-  kinematics of `openpi_absolute_joint` chunks.
+  kinematics of `openpi_absolute_joint` chunks; `--auto-judge` refuses
+  `openvla` / `openvla_oft` models (their `eef_delta` chunks would be misread).
 
 ## Rules
 
@@ -25,8 +26,11 @@ Thresholds: `r_target` = 0.005 m for CPU and 0.010 m otherwise; `d_ref` =
 `r_near` is set per session with `--auto-judge-r-near-m` (no default).
 
 A pose is **inside** the target when position error ≤ `r_target`, rotation
-error ≤ 0.35 rad and z ≥ floor. Targets of the other components in the same
-configuration are non-target regions (radius = their `r_target`).
+error ≤ 0.35 rad and z ≥ floor. A target entry may declare `non_targets`:
+components of the same configuration whose target points become obstacle
+regions (radius = their `r_target`). Nothing is an obstacle unless declared, so
+a component already removed at that position (the CPU fan before the CPU) never
+blocks the approach.
 
 For each predicted chunk, in order:
 
@@ -64,7 +68,10 @@ Each trial directory also gets `chunk_scores.jsonl`: one row per policy query
 with the decision and reasons, actual and predicted TCP, position and rotation
 errors, PACER submetrics (`progress`, `proximity`, `terminal`, `direction`),
 `v_hat`, blocker flags, `v_row` (zero when a blocker fired) and `fk_residual_m`
-(distance between the previous chunk's predicted endpoint and the measured TCP).
+(distance between the previous chunk's predicted endpoint and the measured TCP;
+it also contains servo tracking lag and safety clamping). `auto_judge_context.json`
+records the target points, obstacle regions, workspace and thresholds the trial
+was judged against, so re-recording a target later does not lose provenance.
 
 ## Recording targets
 
@@ -74,7 +81,8 @@ Record a demo at each board position and use its endpoint as the target:
 python -m pacer.rollout_eval.auto_judge_targets add --targets .local/auto_judge_targets.json \
   --config-id config_001 --component ram --demo-episode <demo episode dir>   # last frame
 python -m pacer.rollout_eval.auto_judge_targets add --targets .local/auto_judge_targets.json \
-  --config-id config_001 --component cpu --tcp-pose 0.41 -0.12 0.05 3.14 0.0 0.0
+  --config-id config_001 --component connector --tcp-pose 0.41 -0.12 0.05 3.14 0.0 0.0 \
+  --non-target ram          # the RAM target is an obstacle while judging the connector
 python -m pacer.rollout_eval.auto_judge_targets show --targets .local/auto_judge_targets.json
 ```
 
@@ -93,9 +101,13 @@ Check the forward kinematics against a recorded episode (frames with
 python -m pacer.rollout_eval.ur5e_kinematics --check-episode <episode dir>
 ```
 
-The maximum position residual should be sub-millimetre. A centimetre-level
-residual means the controller base frame differs from the DH base frame; do not
-use the judge until that is resolved. During live runs, watch `fk_residual_m`.
+The check solves the tool offset once from frame 0 and compares the whole
+episode, which is stricter than live use (the judge re-solves the offset at
+every query and predicts only one chunk ahead). Residuals of a few millimetres
+can come from nominal versus calibrated DH parameters; a centimetre-level
+residual means the controller base frame differs from the DH base frame, and
+the judge must not be used until that is resolved. During live runs, watch
+`fk_residual_m`.
 
 Then dry-run and run a short supervised session:
 

@@ -43,6 +43,14 @@ def test_dry_run_records_auto_judge_meta_and_missing_cells(tmp_path):
     assert not any("config_001/cpu" in line for line in missing_lines)
 
 
+def test_auto_judge_refuses_non_openpi_models(tmp_path):
+    args = [a if a != "openpi" else "openvla" for a in BASE]
+    proc = run_script(*args, "--output-root", str(tmp_path), "--dry-run", "--auto-judge",
+                      "--auto-judge-targets", str(tmp_path / "targets.json"), "--auto-judge-r-near-m", "0.05")
+    assert proc.returncode != 0
+    assert "openpi" in proc.stderr.lower()
+
+
 def test_dry_run_without_auto_judge_records_null(tmp_path):
     proc = run_script(*BASE, "--output-root", str(tmp_path), "--dry-run")
     assert proc.returncode == 0, proc.stderr

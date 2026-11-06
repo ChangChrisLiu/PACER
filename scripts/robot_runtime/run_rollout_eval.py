@@ -340,6 +340,13 @@ def main(argv: list[str] | None = None) -> None:
         trials_per_component=args.trials_per_component,
     )
 
+    if args.auto_judge:
+        other = sorted({f"{m.model_id}:{m.model_type}" for m in models if m.model_type != "openpi"})
+        if other:
+            raise SystemExit(
+                "--auto-judge supports openpi models (openpi_absolute_joint chunks) only; "
+                f"not supported: {', '.join(other)}"
+            )
     auto_judge = _build_auto_judge(args)
     writer = RolloutEvalWriter(args.output_root, args.run_id)
     summary = plan_summary(plan)

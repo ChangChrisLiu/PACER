@@ -70,22 +70,33 @@ class AutoJudgeConfig:
         return asdict(self)
 
 
-def _finite(values: Any, length: int, key: str) -> list[float]:
+def _finite(values: Any, length: int, key: str, *, exact: bool = False) -> list[float]:
     try:
-        arr = [float(v) for v in list(values)[:length]]
+        raw = [float(v) for v in list(values)]
     except (TypeError, ValueError) as exc:
         raise ValueError(f"observation {key!r} must be numeric") from exc
-    if len(arr) < length or not all(math.isfinite(v) for v in arr):
-        raise ValueError(f"observation {key!r} needs {length} finite values, got {values!r}")
+    if len(raw) < length or (exact and len(raw) != length):
+        need = f"exactly {length}" if exact else f"at least {length}"
+        raise ValueError(f"observation {key!r} needs {need} values, got {len(raw)}")
+    arr = raw[:length]
+    if not all(math.isfinite(v) for v in arr):
+        raise ValueError(f"observation {key!r} contains non-finite values: {values!r}")
     return arr
 
 
 def obs_joint_and_tcp(obs: Mapping[str, Any]) -> tuple[list[float], list[float]]:
-    """Six joint angles and the measured TCP pose from a robot observation."""
+    """Six joint angles and the measured TCP pose ``[x, y, z, rx, ry, rz]``.
+
+    ``joint_positions`` may carry a trailing gripper value; ``tcp_pose`` must
+    have exactly six values so a quaternion pose is rejected, not misread.
+    """
     for key in ("joint_positions", "tcp_pose"):
         if obs.get(key) is None:
             raise ValueError(f"observation is missing {key!r}; the auto judge needs joint_positions and tcp_pose")
-    return _finite(obs["joint_positions"], 6, "joint_positions"), _finite(obs["tcp_pose"], 6, "tcp_pose")
+    return (
+        _finite(obs["joint_positions"], 6, "joint_positions"),
+        _finite(obs["tcp_pose"], 6, "tcp_pose", exact=True),
+    )
 
 
 def fk_predict(chunk: Sequence[Sequence[float]], obs: Mapping[str, Any]) -> list[list[float]]:
@@ -158,9 +169,29 @@ class TrialJudge:
         self.d_ref = 2.0 * self.r_target
         self.chunk_scores: list[dict[str, Any]] = []
         self._non_target_regions = [
-            {"point": list(p[:3]), "radius": default_position_tolerance_m(o.component)}
+            {"component": o.component, "point": list(p[:3]), "radius": default_position_tolerance_m(o.component)}
             for o in self.non_targets for p in o.points
         ]
+
+    def context(self) -> dict[str, Any]:
+        """Everything this trial was judged against, for the trial record."""
+        workspace = None
+        if self.workspace is not None:
+            workspace = {"min": list(self.workspace[0]), "max": list(self.workspace[1])}
+        return {
+            "target": {
+                "config_id": self.target.config_id,
+                "component": self.target.component,
+                "points": [list(p) for p in self.target.points],
+                "source": self.target.source,
+                "non_targets": list(self.target.non_targets),
+            },
+            "non_target_regions": [dict(r) for r in self._non_target_regions],
+            "workspace": workspace,
+            "config": self.config.to_dict(),
+            "r_target_m": self.r_target,
+            "d_ref_m": self.d_ref,
+        }
 
     # -- helpers -----------------------------------------------------------
     def _inside(self, pose: Sequence[float], point: Sequence[float]) -> bool:
@@ -320,7 +351,7 @@ class AutoJudge:
             workspace = (self.book.workspace_min, self.book.workspace_max)
         return TrialJudge(
             target=target,
-            non_targets=self.book.others_in_config(config_id, component),
+            non_targets=self.book.non_targets_for(config_id, component),
             workspace=workspace,
             config=self.config,
             model_stop_check=model_stop_check,

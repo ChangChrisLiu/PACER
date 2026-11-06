@@ -2,15 +2,18 @@
 
 A target is the TCP pose the approach should reach, usually the endpoint of a
 demo recorded at that position. Entries are keyed by ``config_id/component``.
-Targets of the other components in the same configuration double as
-non-target regions. The demo that defines a target must not be used to train
-any policy that is evaluated against it.
+An entry may declare ``non_targets``: components of the same configuration
+whose target points are obstacles while judging this one. Nothing is an
+obstacle unless declared, because a component removed earlier (the CPU fan
+before the CPU) must not block the approach. The demo that defines a target
+must not be used to train any policy that is evaluated against it.
 
 File format::
 
     {"schema": "pacer_auto_judge_targets.v1",
      "targets": {"config_001/ram": {"points": [[x, y, z, rx, ry, rz]],
-                                     "source": "demo_endpoint"}},
+                                     "source": "demo_endpoint",
+                                     "non_targets": ["connector"]}},   # optional
      "workspace": {"min": [x, y, z], "max": [x, y, z]}}   # optional
 """
 from __future__ import annotations
@@ -57,6 +60,7 @@ class JudgeTarget:
     component: str
     points: tuple[tuple[float, ...], ...]
     source: str
+    non_targets: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "config_id", normalize_config_id(self.config_id))
@@ -66,6 +70,13 @@ class JudgeTarget:
         if not points:
             raise ValueError(f"target {self.key} needs at least one point")
         object.__setattr__(self, "points", points)
+        non_targets: list[str] = []
+        for name in self.non_targets:
+            if name not in COMPONENT_SEQUENCE or name == self.component:
+                raise ValueError(f"non_targets of {self.key} must name other components, got {name!r}")
+            if name not in non_targets:
+                non_targets.append(name)
+        object.__setattr__(self, "non_targets", tuple(non_targets))
 
     @property
     def key(self) -> str:
@@ -81,9 +92,18 @@ class TargetBook:
     def get(self, config_id: str, component: str) -> JudgeTarget | None:
         return self.targets.get((normalize_config_id(config_id), component))
 
-    def others_in_config(self, config_id: str, component: str) -> list[JudgeTarget]:
-        cfg = normalize_config_id(config_id)
-        return [t for (c, comp), t in sorted(self.targets.items()) if c == cfg and comp != component]
+    def non_targets_for(self, config_id: str, component: str) -> list[JudgeTarget]:
+        """Targets declared as obstacles by this cell; a declared one must exist."""
+        target = self.get(config_id, component)
+        if target is None:
+            return []
+        out: list[JudgeTarget] = []
+        for name in target.non_targets:
+            other = self.get(config_id, name)
+            if other is None:
+                raise ValueError(f"{target.key} declares non-target {name!r}, which has no target in this file")
+            out.append(other)
+        return out
 
 
 def _read_raw(path: Path) -> dict[str, Any]:
@@ -104,7 +124,10 @@ def load_targets(path: Path) -> TargetBook:
         config_id, sep, component = str(key).partition("/")
         if not sep or not isinstance(entry, Mapping):
             raise ValueError(f"malformed target entry {key!r}")
-        target = JudgeTarget(config_id, component, tuple(entry.get("points") or ()), str(entry.get("source", "")))
+        target = JudgeTarget(
+            config_id, component, tuple(entry.get("points") or ()), str(entry.get("source", "")),
+            non_targets=tuple(entry.get("non_targets") or ()),
+        )
         targets[(target.config_id, target.component)] = target
     workspace = raw.get("workspace")
     if workspace is None:
@@ -122,7 +145,10 @@ def upsert_target(path: Path, target: JudgeTarget) -> None:
     path = Path(path)
     raw = _read_raw(path)
     targets = dict(raw.get("targets", {}))
-    targets[target.key] = {"points": [list(p) for p in target.points], "source": target.source}
+    entry: dict[str, Any] = {"points": [list(p) for p in target.points], "source": target.source}
+    if target.non_targets:
+        entry["non_targets"] = list(target.non_targets)
+    targets[target.key] = entry
     raw["targets"] = targets
     raw["schema"] = TARGETS_SCHEMA
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -148,12 +174,13 @@ def target_from_demo_episode(
         frame = pickle.load(f)
     if not isinstance(frame, Mapping) or frame.get("tcp_pose") is None:
         raise ValueError(f"{path} has no tcp_pose")
-    return JudgeTarget(config_id, component, (tuple(frame["tcp_pose"])[:6],), "demo_endpoint")
+    # No slicing: a 7-value pose (e.g. a quaternion) must fail, not be misread.
+    return JudgeTarget(config_id, component, (tuple(frame["tcp_pose"]),), "demo_endpoint")
 
 
 def target_from_region_json(path: Path, *, config_id: str, component: str) -> JudgeTarget:
     raw = json.loads(Path(path).read_text())
-    points = tuple(tuple(p["tcp_pose"])[:6] for p in raw.get("points") or ())
+    points = tuple(tuple(p["tcp_pose"]) for p in raw.get("points") or ())
     return JudgeTarget(config_id, component, points, "target_region")
 
 
@@ -169,6 +196,9 @@ def main(argv: list[str] | None = None) -> None:
     src.add_argument("--demo-episode", type=Path, help="Episode dir with frame_*.pkl; uses the last frame")
     src.add_argument("--target-region-json", type=Path, help="PACER target_region.json")
     add.add_argument("--frame-index", type=int, default=None, help="With --demo-episode: frame to use")
+    add.add_argument("--non-target", action="append", default=[], choices=COMPONENT_SEQUENCE,
+                     help="Component of the same config whose target is an obstacle (repeatable). "
+                          "Do not list components already removed at this position.")
     show = sub.add_parser("show", help="Print the targets file")
     show.add_argument("--targets", type=Path, required=True)
     args = ap.parse_args(argv)
@@ -176,7 +206,8 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "show":
         book = load_targets(args.targets)
         for target in book.targets.values():
-            print(f"{target.key}: {len(target.points)} point(s), source={target.source}")
+            extra = f", non_targets={list(target.non_targets)}" if target.non_targets else ""
+            print(f"{target.key}: {len(target.points)} point(s), source={target.source}{extra}")
         if book.workspace_min is not None:
             print(f"workspace: min={book.workspace_min} max={book.workspace_max}")
         return
@@ -190,6 +221,9 @@ def main(argv: list[str] | None = None) -> None:
         )
     else:
         target = target_from_region_json(args.target_region_json, config_id=args.config_id, component=args.component)
+    if args.non_target:
+        target = JudgeTarget(target.config_id, target.component, target.points, target.source,
+                             non_targets=tuple(args.non_target))
     upsert_target(args.targets, target)
     print(f"saved {target.key} ({len(target.points)} point(s), source={target.source}) to {args.targets}")
 

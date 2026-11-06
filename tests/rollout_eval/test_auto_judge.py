@@ -132,6 +132,24 @@ def test_missing_obs_keys_raise():
         judge.check_chunk(CHUNK, {"joint_positions": [0.0] * 6})
 
 
+def test_tcp_pose_must_have_exactly_six_values():
+    judge = make_judge([at()] * 10)
+    with pytest.raises(ValueError, match="tcp_pose"):
+        judge.check_chunk(CHUNK, {"joint_positions": [0.0] * 7, "tcp_pose": at() + [1.0]})
+
+
+def test_context_snapshots_target_regions_and_config():
+    fan = JudgeTarget("config_001", "cpu_fan", (FAN_POINT,), "tcp_pose")
+    judge = make_judge([at()] * 10, non_targets=[fan], workspace=((-1.0, -1.0, 0.0), (1.0, 1.0, 1.0)))
+    ctx = judge.context()
+    assert ctx["target"] == {"config_id": "config_001", "component": "ram", "points": [list(TARGET)],
+                             "source": "tcp_pose", "non_targets": []}
+    assert ctx["non_target_regions"] == [{"component": "cpu_fan", "point": list(FAN_POINT[:3]), "radius": 0.010}]
+    assert ctx["workspace"] == {"min": [-1.0, -1.0, 0.0], "max": [1.0, 1.0, 1.0]}
+    assert ctx["config"]["r_near_m"] == 0.05
+    assert ctx["r_target_m"] == 0.010 and ctx["d_ref_m"] == 0.020
+
+
 def test_default_fk_predict_hold_position():
     q0 = [0.1, -1.2, 1.4, -1.6, -1.5, 0.3]
     tcp = matrix_to_pose(flange_transform(q0) @ pose_to_matrix([0, 0, 0.2, 0, 0, 0]))
@@ -188,12 +206,13 @@ def test_auto_judge_missing_target_raises_keyerror_and_reload_picks_up_new_targe
     assert aj.has_target("config_001", "ram") is False
     with pytest.raises(KeyError):
         aj.trial_judge("config_001", "ram")
-    upsert_target(path, JudgeTarget("config_001", "ram", (TARGET,), "tcp_pose"))
+    upsert_target(path, JudgeTarget("config_001", "ram", (TARGET,), "tcp_pose", non_targets=("cpu_fan",)))
     upsert_target(path, JudgeTarget("config_001", "cpu_fan", (FAN_POINT,), "tcp_pose"))
     aj.reload()
     assert aj.has_target("config_001", "ram") is True
     judge = aj.trial_judge("config_001", "ram")
     assert [t.component for t in judge.non_targets] == ["cpu_fan"]
+    assert aj.trial_judge("config_001", "cpu_fan").non_targets == []
     meta = aj.to_dict()
     assert meta["config"]["r_near_m"] == 0.05
     assert meta["targets_path"] == str(path)

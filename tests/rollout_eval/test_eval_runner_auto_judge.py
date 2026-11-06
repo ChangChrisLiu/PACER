@@ -110,6 +110,20 @@ def test_auto_mode_skips_pre_rollout_gate_and_labels_success(tmp_path):
     assert row["operator_auto_assigned"] is True
     scores = (writer.trial_dir(_plan()[0]) / "chunk_scores.jsonl").read_text().splitlines()
     assert len(scores) == 1 and json.loads(scores[0])["decision"] == "auto_success_stop"
+    ctx = json.loads((writer.trial_dir(_plan()[0]) / "auto_judge_context.json").read_text())
+    assert ctx["target"]["points"] == [list(TCP)]
+    assert ctx["config"]["r_near_m"] == 0.05
+
+
+def test_auto_mode_rejects_non_openpi_model(tmp_path):
+    calls = {}
+    aj = AutoJudge(targets_path=_targets(tmp_path), config=AutoJudgeConfig(r_near_m=0.05))
+    model = ModelSpec(model_id="m1", model_type="openvla", checkpoint_path="ck")
+    runner, writer = _runner(tmp_path, auto_judge=aj, calls=calls)
+    runner.run(plan=_plan(), models_by_id={"m1": model})
+    progress = json.loads(writer.progress_path().read_text())
+    assert "openpi" in next(iter(progress["failed"].values()))
+    assert not writer.summary_jsonl_path().exists()
 
 
 def test_auto_stop_uses_model_stop_token_hardware_semantics(tmp_path):

@@ -363,6 +363,13 @@ class RolloutEvalRunner:
         Returns the rollout `stop_source` so the caller can route post-trial
         flow (e.g. unsafe_abort readiness gate).
         """
+        if self.auto_judge is not None and model.model_type != "openpi":
+            # The judge maps chunks to TCP with joint-space FK; eef_delta chunks
+            # would be misread and every trial mislabelled.
+            raise ValueError(
+                f"auto judge supports openpi models (openpi_absolute_joint chunks) only; "
+                f"model {model.model_id!r} has model_type={model.model_type!r}"
+            )
         self.move_home()
         if self.auto_judge is None:
             self.pre_rollout_gate(
@@ -500,6 +507,7 @@ class RolloutEvalRunner:
                 "gripper_cap_components": list(self.config.gripper_cap_components),
             },
             chunk_scores=judge.chunk_scores if judge is not None else None,
+            judge_context=judge.context() if judge is not None else None,
         )
         # Defensive: if the auto-assigned label disagrees with the actual stop
         # source, we still trust the operator menu output. But the unsafe_abort

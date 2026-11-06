@@ -99,20 +99,40 @@ def test_region_json_uses_all_points(tmp_path):
     assert target.source == "target_region"
 
 
-def test_others_in_config_excludes_self_and_other_configs(tmp_path):
+def test_non_targets_are_opt_in_and_roundtrip(tmp_path):
     path = tmp_path / "targets.json"
-    upsert_target(path, JudgeTarget("config_001", "ram", (POSE_A,), "tcp_pose"))
+    upsert_target(path, JudgeTarget("config_001", "cpu", (POSE_A,), "tcp_pose"))
     upsert_target(path, JudgeTarget("config_001", "cpu_fan", (POSE_B,), "tcp_pose"))
-    upsert_target(path, JudgeTarget("config_002", "cpu", (POSE_B,), "tcp_pose"))
-    others = load_targets(path).others_in_config("config_001", "ram")
-    assert [(t.config_id, t.component) for t in others] == [("config_001", "cpu_fan")]
+    upsert_target(path, JudgeTarget("config_001", "ram", (POSE_A,), "tcp_pose", non_targets=("cpu_fan",)))
+    book = load_targets(path)
+    # A removed component (cpu_fan before cpu) is not an obstacle unless declared.
+    assert book.non_targets_for("config_001", "cpu") == []
+    assert [t.component for t in book.non_targets_for("config_001", "ram")] == ["cpu_fan"]
+    assert book.get("config_001", "ram").non_targets == ("cpu_fan",)
+
+
+def test_declared_non_target_must_exist_and_not_be_self(tmp_path):
+    with pytest.raises(ValueError):
+        JudgeTarget("config_001", "ram", (POSE_A,), "tcp_pose", non_targets=("ram",))
+    path = tmp_path / "targets.json"
+    upsert_target(path, JudgeTarget("config_001", "ram", (POSE_A,), "tcp_pose", non_targets=("cpu_fan",)))
+    with pytest.raises(ValueError, match="cpu_fan"):
+        load_targets(path).non_targets_for("config_001", "ram")
+
+
+def test_seven_value_tcp_pose_in_demo_frame_raises(tmp_path):
+    with (tmp_path / "frame_0000.pkl").open("wb") as f:
+        pickle.dump({"tcp_pose": [0.1, 0.0, 0.05, 0.0, 0.0, 0.0, 1.0]}, f)
+    with pytest.raises(ValueError):
+        target_from_demo_episode(tmp_path, config_id="config_001", component="ram")
 
 
 def test_cli_add_tcp_pose_writes_file(tmp_path):
     path = tmp_path / "targets.json"
     main(["add", "--targets", str(path), "--config-id", "config_003", "--component", "graphic_card",
-          "--tcp-pose", *[str(v) for v in POSE_A]])
+          "--tcp-pose", *[str(v) for v in POSE_A], "--non-target", "ram", "--non-target", "cpu_fan"])
     target = load_targets(path).get("config_003", "graphic_card")
     assert target is not None
     assert target.points == (POSE_A,)
     assert target.source == "tcp_pose"
+    assert target.non_targets == ("ram", "cpu_fan")
