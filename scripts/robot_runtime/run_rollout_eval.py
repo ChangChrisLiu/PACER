@@ -32,6 +32,11 @@ from typing import Any
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+# The auto judge scores chunks with pacer_framework; make it importable from a
+# source checkout as well as from an installed distribution.
+_FRAMEWORK_ROOT = _REPO_ROOT / "PACER_Framework"
+if _FRAMEWORK_ROOT.is_dir() and str(_FRAMEWORK_ROOT) not in sys.path:
+    sys.path.insert(1, str(_FRAMEWORK_ROOT))
 
 from pacer.collection.config import COMPONENT_SEQUENCE, DEFAULT_FPS, DEFAULT_IMAGE_SIZE, DEFAULT_MAX_STEPS
 from pacer.rollout_eval.eval_plan import (
@@ -172,7 +177,38 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Destructive: delete progress.json for this run_id before iterating.",
     )
 
-    return ap.parse_args(argv)
+    judge = ap.add_argument_group(
+        "auto trial judge",
+        "Score each predicted chunk with PACER geometry, stop and label trials "
+        "automatically (approach only). See docs/AUTO_TRIAL_JUDGE.md.",
+    )
+    judge.add_argument("--auto-judge", action="store_true",
+                       help="Replace the operator label menu and per-trial Enter gate with the auto judge.")
+    judge.add_argument("--auto-judge-targets", type=Path, default=None,
+                       help="Targets JSON (pacer_auto_judge_targets.v1) keyed by config_id/component.")
+    judge.add_argument("--auto-judge-r-near-m", type=float, default=None,
+                       help="Final-pose radius (m) separating wrong location from totally off. No default.")
+
+    args = ap.parse_args(argv)
+    if args.auto_judge:
+        if args.auto_judge_targets is None:
+            ap.error("--auto-judge requires --auto-judge-targets")
+        if args.auto_judge_r_near_m is None:
+            ap.error("--auto-judge requires --auto-judge-r-near-m")
+    return args
+
+
+def _build_auto_judge(args: argparse.Namespace) -> Any:
+    """AutoJudge for --auto-judge, else None (import kept lazy for manual mode)."""
+    if not args.auto_judge:
+        return None
+    from pacer.rollout_eval.auto_judge import AutoJudge, AutoJudgeConfig
+
+    try:
+        config = AutoJudgeConfig(r_near_m=float(args.auto_judge_r_near_m))
+        return AutoJudge(targets_path=args.auto_judge_targets, config=config)
+    except ValueError as exc:
+        raise SystemExit(f"--auto-judge: {exc}") from exc
 
 
 def _resolve_models(args: argparse.Namespace) -> list[ModelSpec]:
@@ -212,8 +248,10 @@ def _build_session_meta(
     plan_count: int,
     summary: dict[str, Any],
     models: list[ModelSpec],
+    auto_judge: Any = None,
 ) -> dict[str, Any]:
     return {
+        "auto_judge": auto_judge.to_dict() if auto_judge is not None else None,
         "schema_version": "pacer_rollout_eval.v0.1",
         "run_id": args.run_id,
         "operator": args.operator,
@@ -248,6 +286,23 @@ def _build_session_meta(
             "disable_safety": bool(args.disable_safety),
         },
     }
+
+
+def print_auto_judge(plan: list, auto_judge: Any) -> None:
+    """Print the auto-judge settings and the plan cells that still lack a target."""
+    if auto_judge is None:
+        return
+    print(f"[AUTO-JUDGE] {json.dumps(auto_judge.to_dict())}")
+    cells: list[tuple[str, str]] = []
+    for trial in plan:
+        cell = (trial.config_id, trial.component)
+        if cell not in cells:
+            cells.append(cell)
+    missing = [f"{c}/{comp}" for c, comp in cells if not auto_judge.has_target(c, comp)]
+    for cell in missing:
+        print(f"[AUTO-JUDGE] missing target: {cell}")
+    if not missing:
+        print("[AUTO-JUDGE] every plan cell has a target")
 
 
 def print_plan(plan: list, args: argparse.Namespace) -> None:
@@ -285,10 +340,12 @@ def main(argv: list[str] | None = None) -> None:
         trials_per_component=args.trials_per_component,
     )
 
+    auto_judge = _build_auto_judge(args)
     writer = RolloutEvalWriter(args.output_root, args.run_id)
     summary = plan_summary(plan)
     session_meta = _build_session_meta(
         args=args, plan_count=len(plan), summary=summary, models=models,
+        auto_judge=auto_judge,
     )
     writer.save_session_meta(session_meta)
     writer.save_models_registry(models)
@@ -299,6 +356,7 @@ def main(argv: list[str] | None = None) -> None:
     progress = EvalProgressTracker(progress_path)
 
     print_plan(plan, args)
+    print_auto_judge(plan, auto_judge)
     pending = progress.remaining(plan)
     if len(pending) != len(plan):
         print(f"[RESUME] {len(plan) - len(pending)} trials already completed; "
@@ -442,6 +500,7 @@ def main(argv: list[str] | None = None) -> None:
         query_diag_fn=collection._build_query_diag_fn_for_test(),
         operator=args.operator,
         mandatory_break_every=int(args.mandatory_break_every),
+        auto_judge=auto_judge,
     )
 
     models_by_id = {m.model_id: m for m in models}

@@ -2,6 +2,18 @@
 
 ## Unreleased / next minor release
 
+- Rollout-only evaluation gains an optional `--auto-judge` mode
+  ([docs/AUTO_TRIAL_JUDGE.md](docs/AUTO_TRIAL_JUDGE.md)). Each predicted chunk is
+  scored with PACER open-loop geometry before execution and saved to
+  `chunk_scores.jsonl`. Trials stop as `auto_success_stop` or `auto_blocker_stop`
+  and are labelled automatically, with `needs_review` notes near thresholds.
+  Targets per board position live in a JSON file
+  (`python -m pacer.rollout_eval.auto_judge_targets`). UR5e forward kinematics
+  and an episode check are in `pacer.rollout_eval.ur5e_kinematics`. Manual mode
+  is unchanged.
+- `TracedChunkRunner` `stop_check` may return a stop-source string; `True` still
+  means `model_stop_token`. Query traces record `extra.stop_check_source`.
+
 - The shared default validation route is direct component-balanced mean.
   `robust_profile_j_val` without a profile no longer selects a factor-family
   lower-tail diagnostic. Explicit named diagnostics remain replayable.

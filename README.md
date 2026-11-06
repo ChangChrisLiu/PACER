@@ -373,6 +373,8 @@ and repository-boundary topics:
   drivers.
 - [`docs/ZMQ_AGENT_CONTRACT.md`](docs/ZMQ_AGENT_CONTRACT.md) defines safe ZMQ
   probe messages and bridge expectations.
+- [`docs/AUTO_TRIAL_JUDGE.md`](docs/AUTO_TRIAL_JUDGE.md) describes the optional
+  `--auto-judge` mode that scores, stops and labels rollout-only approach trials.
 - [`docs/REPOSITORY_SCOPE.md`](docs/REPOSITORY_SCOPE.md) records what
   is included and intentionally excluded from this repository.
 - [`docs/archive/INTERNAL_HANDOFFS_NOT_INCLUDED.md`](docs/archive/INTERNAL_HANDOFFS_NOT_INCLUDED.md)
